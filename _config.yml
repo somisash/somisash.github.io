@@ -22,15 +22,15 @@ repository               : "academicpages/academicpages.github.io"
 #               If a field is blank the icon and link will not appear, otherwise it will be shown.
 #               Additional customization can be done by editing /_includes/author-profile.html
 author:
-  # Biographic information
+ # Biographic information
   avatar           : "profile.png"
-  name             : "Your Sidebar Name"
-  pronouns         : # example: "she/her"  
-  bio              : "Short biography for the left-hand sidebar"
-  location         : "Earth"
-  employer         : "Red Brick University"
+  name             : "Somi Eigbe"
+  bio              : "M.S. student in Aeronautics and Astronautics at Stanford University studying space debris, orbital congestion, and debris mitigation policy."
+  location         : "San Jose, California"
+  employer         : "Stanford University"
   uri              : # URL
-  email            : "none@example.org" 
+  email            : "somisash@stanford.edu"
+ 
 
   # Academic websites
   academia         : # URL
