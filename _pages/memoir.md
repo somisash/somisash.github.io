@@ -3,6 +3,7 @@ layout: single
 title: "Memoir"
 permalink: /memoir/
 ---
+People often dream of becoming astronauts when they are little. I caught the vision of becoming an astronaut and an aerospace engineer at the age of thirty-two. That is when my journey began.
 
 I am writing a memoir titled *Women Who Dream* about my journey from Lagos, Nigeria, to an unexpected life in aerospace, motherhood, and faith. This page is where I keep a public record of the project as it grows.
 
