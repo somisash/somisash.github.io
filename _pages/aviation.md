@@ -9,7 +9,7 @@ I am training toward my Private Pilot License (PPL) and using this page to docum
 ## How I am learning
 
 - **Ground school** – Sporty’s online PPL course and FAA materials.  
-- **Simulator practice** – X‑Plane with a Honeycomb yoke to build basic scan, procedures, and muscle memory.  
+- **Simulator practice** – X‑Plane with a Honeycomb yoke/throttle to build basic scan, procedures, and muscle memory.  
 - **In‑air training** – Accelerated PPL over 60 days, focused on a sustainable, enjoyable pace.  
 
 ## Training philosophy
