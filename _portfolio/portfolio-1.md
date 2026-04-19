@@ -1,5 +1,5 @@
 ---
-title: "Construction Robots"
+title: "Prototype Construction Robots"
 excerpt: "A visual progression of my early construction robotics work, from first prototypes to later development and presentation.<br/><img src='/images/Robot.jpg'>"
 collection: portfolio
 ---
