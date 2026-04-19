@@ -7,7 +7,7 @@ redirect_from:
   - /about.html
 ---
 
-## 
+
 I am a grad student in Aeronautics and Astronautics at Stanford University, a mother, and a founder, with a background in Aerospace Engineering from UCLA. My work focuses on space systems, robotics, and the development of technologies that operate in complex environments both on Earth and in orbit. 
 
 I am particularly interested in orbital safety, space debris mitigation, and how engineering systems and governance frameworks evolve alongside rapid growth in the space environment.
