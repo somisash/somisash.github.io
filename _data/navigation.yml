@@ -22,3 +22,16 @@ main:
   - title: "Blog"
     url: /year-archive/
 
+    
+  - title: "CV"
+    url: /cv/
+
+  - title: "Memoir"
+    url: /memoir/
+
+  - title: "Aviation"
+    url: /aviation/
+
+  - title: "Ski Journey"
+    url: /ski-journey/
+
