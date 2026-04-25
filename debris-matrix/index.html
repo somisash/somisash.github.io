@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orbital Debris Sentinel — Classification Confusion Matrix</title>
+<style>
+  /* ── Reset & tokens ───────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #F7F6F2;
+    --surface:   #FFFFFF;
+    --border:    #D4D1CA;
+    --text:      #28251D;
+    --muted:     #7A7974;
+    --faint:     #BAB9B4;
+    --accent:    #01696F;
+
+    --wA: #00c8ff;
+    --wB: #ff3060;
+    --wC: #ffaa00;
+    --wD: #b44fff;
+
+    --wA-dim: rgba(0,200,255,0.15);
+    --wB-dim: rgba(255,48,96,0.15);
+    --wC-dim: rgba(255,170,0,0.15);
+    --wD-dim: rgba(180,79,255,0.15);
+
+    --radius: 8px;
+    --shadow: 0 2px 12px rgba(0,0,0,0.08);
+    --font: 'Inter', system-ui, sans-serif;
+  }
+
+  body.dark {
+    --bg:      #0f0f0e;
+    --surface: #1a1917;
+    --border:  #2e2d2b;
+    --text:    #CDCCCA;
+    --muted:   #797876;
+    --faint:   #3a3937;
+    --accent:  #4F98A3;
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 24px 24px 48px;
+    transition: background 0.25s, color 0.25s;
+  }
+
+  /* ── Layout ───────────────────────────────────────────────────── */
+  .wrapper {
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+
+  header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+  }
+
+  .header-left h1 {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    color: var(--text);
+    line-height: 1.2;
+  }
+  .header-left p {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 4px;
+    max-width: 520px;
+    line-height: 1.55;
+  }
+
+  .header-right {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 13px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--faint); }
+  .btn:active { transform: scale(0.97); }
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .btn.primary:hover { opacity: 0.88; background: var(--accent); }
+
+  /* ── Main grid ────────────────────────────────────────────────── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 20px;
+    align-items: start;
+  }
+
+  @media (max-width: 800px) {
+    .main-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ── Matrix panel ─────────────────────────────────────────────── */
+  .matrix-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow);
+  }
+
+  .matrix-panel h2 {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 20px;
+  }
+
+  .matrix-outer {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+  }
+
+  /* Axis labels */
+  .y-label-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    width: 18px;
+    flex-shrink: 0;
+    margin-right: 10px;
+  }
+
+  .matrix-inner {
+    flex: 1;
+  }
+
+  .x-header {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .col-labels {
+    display: grid;
+    grid-template-columns: 80px repeat(4, 1fr);
+    gap: 4px;
+    margin-bottom: 4px;
+  }
+  .col-labels .spacer { } /* empty */
+  .col-label {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 2px;
+    border-radius: 4px;
+  }
+
+  .matrix-grid {
+    display: grid;
+    grid-template-columns: 80px repeat(4, 1fr);
+    gap: 4px;
+  }
+
+  .row-label {
+    display: flex;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 0 8px 0 0;
+    border-radius: 4px;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .row-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .matrix-cell {
+    position: relative;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1;
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.12s;
+    border: 1.5px solid transparent;
+    min-height: 56px;
+  }
+  .matrix-cell:hover {
+    transform: scale(1.06);
+    z-index: 10;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.18);
+  }
+  .matrix-cell.diagonal {
+    border-color: rgba(255,255,255,0.25);
+  }
+
+  .cell-count {
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.5px;
+  }
+  .cell-pct {
+    font-size: 10px;
+    font-weight: 500;
+    opacity: 0.75;
+    margin-top: 2px;
+  }
+
+  /* ── Tooltip ──────────────────────────────────────────────────── */
+  #tooltip {
+    position: fixed;
+    z-index: 1000;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    pointer-events: none;
+    max-width: 240px;
+    opacity: 0;
+    transition: opacity 0.12s;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  #tooltip.visible { opacity: 1; }
+  #tooltip .tt-head {
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+  #tooltip .tt-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--muted);
+  }
+  #tooltip .tt-row strong { color: var(--text); }
+  #tooltip .tt-note {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px;
+    font-style: italic;
+    line-height: 1.5;
+  }
+
+  /* ── Side panel ───────────────────────────────────────────────── */
+  .side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .side-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    box-shadow: var(--shadow);
+  }
+  .side-card h3 {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  /* Per-world stats */
+  .world-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .ws-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .ws-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+  }
+  .ws-name {
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ws-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+  .ws-vals {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: right;
+  }
+  .ws-bar-track {
+    height: 6px;
+    background: var(--faint);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .ws-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  /* Signature mini-charts */
+  .sig-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .sig-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+  }
+  .sig-label {
+    width: 70px;
+    flex-shrink: 0;
+    color: var(--muted);
+    font-size: 10px;
+  }
+  .sig-bars {
+    display: flex;
+    gap: 2px;
+    flex: 1;
+    align-items: flex-end;
+    height: 24px;
+  }
+  .sig-bar-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    height: 24px;
+  }
+  .sig-bar {
+    width: 100%;
+    border-radius: 2px 2px 0 0;
+    transition: height 0.5s cubic-bezier(0.4,0,0.2,1);
+  }
+  .sig-bar-labels {
+    display: grid;
+    grid-template-columns: 70px 1fr;
+    gap: 8px;
+    margin-top: 2px;
+  }
+  .sig-world-tags {
+    display: flex;
+    gap: 2px;
+    flex: 1;
+  }
+  .sig-tag {
+    flex: 1;
+    text-align: center;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 0;
+    border-radius: 2px;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  .legend-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 3px;
+  }
+  .legend-item strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  /* ── Summary strip ────────────────────────────────────────────── */
+  .summary-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 600px) {
+    .summary-strip { grid-template-columns: repeat(2, 1fr); }
+  }
+  .stat-tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    box-shadow: var(--shadow);
+  }
+  .stat-tile .val {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1;
+    color: var(--text);
+  }
+  .stat-tile .lbl {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+    font-weight: 500;
+  }
+
+  /* ── Mode tabs ────────────────────────────────────────────────── */
+  .mode-tabs {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--bg);
+  }
+  .mode-tab {
+    flex: 1;
+    text-align: center;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--muted);
+    border: none;
+    background: transparent;
+    transition: background 0.15s, color 0.15s;
+  }
+  .mode-tab.active {
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  /* ── Footer note ──────────────────────────────────────────────── */
+  footer {
+    margin-top: 20px;
+    font-size: 11px;
+    color: var(--faint);
+    text-align: center;
+    line-height: 1.6;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  /* ── Notification ─────────────────────────────────────────────── */
+  #notify {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--text);
+    color: var(--bg);
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    z-index: 9999;
+  }
+  #notify.show { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<div id="notify"></div>
+<div id="tooltip">
+  <div class="tt-head" id="tt-head"></div>
+  <div class="tt-row"><span>Count</span><strong id="tt-count"></strong></div>
+  <div class="tt-row"><span>Row %</span><strong id="tt-rowpct"></strong></div>
+  <div class="tt-row"><span>Total %</span><strong id="tt-totpct"></strong></div>
+  <div class="tt-note" id="tt-note"></div>
+</div>
+
+<div class="wrapper">
+
+  <!-- Header -->
+  <header>
+    <div class="header-left">
+      <h1>Orbital Debris Sentinel — Sensor Classification Matrix</h1>
+      <p>4-class confusion matrix for World A–D impact-sensor discrimination. Rows = actual world; columns = predicted class. Diagonal = correct classifications. Sample data derived from simulated game trials (n = 200 events).</p>
+    </div>
+    <div class="header-right">
+      <div class="mode-tabs" id="modeTabs">
+        <button class="mode-tab active" onclick="setMode('count')">Count</button>
+        <button class="mode-tab" onclick="setMode('rowpct')">Row %</button>
+        <button class="mode-tab" onclick="setMode('totpct')">Total %</button>
+      </div>
+      <button class="btn" onclick="toggleDark()">☀︎ / ☾</button>
+      <button class="btn primary" id="exportBtn" onclick="exportPNG()">↓ Export PNG</button>
+    </div>
+  </header>
+
+  <!-- Summary strip -->
+  <div class="summary-strip">
+    <div class="stat-tile">
+      <div class="val" id="stat-acc">—</div>
+      <div class="lbl">Overall Accuracy</div>
+    </div>
+    <div class="stat-tile">
+      <div class="val" id="stat-n">200</div>
+      <div class="lbl">Total Events</div>
+    </div>
+    <div class="stat-tile">
+      <div class="val" id="stat-best">—</div>
+      <div class="lbl">Best Classified</div>
+    </div>
+    <div class="stat-tile">
+      <div class="val" id="stat-hard">—</div>
+      <div class="lbl">Hardest to Classify</div>
+    </div>
+  </div>
+
+  <!-- Main grid -->
+  <div class="main-grid" id="exportTarget">
+    <!-- Matrix panel -->
+    <div class="matrix-panel" id="matrixPanel">
+      <h2>Confusion Matrix</h2>
+      <div class="matrix-outer">
+        <div class="y-label-wrap">Actual World</div>
+        <div class="matrix-inner">
+          <div class="x-header">Predicted Class</div>
+          <div class="col-labels" id="colLabels"></div>
+          <div class="matrix-grid" id="matrixGrid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Side panel -->
+    <div class="side-panel">
+      <!-- Per-world accuracy -->
+      <div class="side-card">
+        <h3>Per-World Accuracy</h3>
+        <div class="world-stat" id="worldStats"></div>
+      </div>
+
+      <!-- Sensor signatures -->
+      <div class="side-card">
+        <h3>Discriminant Sensor Signatures</h3>
+        <div class="sig-chart" id="sigChart"></div>
+      </div>
+
+      <!-- Legend -->
+      <div class="side-card">
+        <h3>World Legend</h3>
+        <div class="legend" id="legend"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Sample data: n = 200 simulated classification trials · Physics parameters from Eigbe (2025) &amp;
+    <a href="https://ntrs.nasa.gov/api/citations/20190033490/downloads/20190033490.pdf" target="_blank">NASAOREM 3.1</a> ·
+    Kessler cascade thresholds from <a href="https://aquarid.physics.uwo.ca/kessler/Kessler%20Syndrome-AAS%20Paper.pdf" target="_blank">Kessler AAS 2009</a>
+  </footer>
+</div>
+
+<script>
+// ── Data ─────────────────────────────────────────────────────────────
+const WORLDS = [
+  { id: 'A', name: 'World A', sub: 'Background LEO', color: '#00c8ff', dimColor: 'rgba(0,200,255,0.14)' },
+  { id: 'B', name: 'World B', sub: 'Stealth Release', color: '#ff3060', dimColor: 'rgba(255,48,96,0.14)' },
+  { id: 'C', name: 'World C', sub: 'Accidental Frag.', color: '#ffaa00', dimColor: 'rgba(255,170,0,0.14)' },
+  { id: 'D', name: 'World D', sub: 'Kessler Cascade', color: '#b44fff', dimColor: 'rgba(180,79,255,0.14)' },
+];
+
+// Confusion matrix [actual][predicted]  — rows sum to 50 events each (total 200)
+// Derived from sensor signature profiles:
+//   - B has narrow directional spread (0.12) → hard to confuse once spread registered
+//   - A↔C confused via similar piezo/plasma; distinguished by rate variance
+//   - D is distinctive (high all channels) but occasionally confused with C at low cascade gen
+const CM_RAW = [
+  //        A   B   C   D   (predicted)
+  /* A */ [ 38,  2,  8,  2 ],
+  /* B */ [  2, 44,  1,  3 ],
+  /* C */ [ 10,  1, 34,  5 ],
+  /* D */ [  1,  2,  4, 43 ],
+];
+
+const TOTAL = CM_RAW.flat().reduce((a,b) => a+b, 0); // 200
+
+// Sensor signature profiles per world (0–1 scale)
+// Piezo | Plasma | RF/Mag | Dir.Spread | RateVariance
+const SIGS = {
+  A: [0.38, 0.20, 0.16, 0.45, 0.18],
+  B: [0.44, 0.25, 0.28, 0.12, 0.72],
+  C: [0.31, 0.35, 0.14, 0.60, 0.55],
+  D: [0.88, 0.78, 0.55, 0.90, 0.98],
+};
+const SIG_LABELS = ['Piezo', 'Plasma', 'RF/Mag', 'Dir. Spread', 'Rate Var.'];
+
+// Confusion notes for each cell (actual i, predicted j)
+const NOTES = [
+  [ 'Correct: steady Poisson rate + mid-range piezo',
+    'A→B: narrow burst window misread as stealth; uncommon',
+    'A→C: similar piezo/plasma; distinguished by rate variance (A lower)',
+    'A→D: very rare; cascade intensity unmistakable' ],
+  [ 'B→A: burst interval too short, read as steady; rare',
+    'Correct: narrow directional spread (0.12) is key discriminant',
+    'B→C: burst duration confusion; C spreads, B stays narrow',
+    'B→D: high rate-variance overlap at burst peak; uncommon' ],
+  [ 'C→A: spreading cloud at low density mimics background',
+    'C→B: very rare; B\'s narrow spread is usually visible',
+    'Correct: broad spread + mid piezo is distinctive',
+    'C→D: late-stage spreading cloud at high density; occasional' ],
+  [ 'D→A: only at Gen 1 before runaway; very rare',
+    'D→B: cascade burst superficially resembles stealth pulse',
+    'D→C: early cascade wave confused with accidental cloud',
+    'Correct: runaway rate + omni spread + high piezo all agree' ],
+];
+
+// ── State ─────────────────────────────────────────────────────────────
+let displayMode = 'count'; // 'count' | 'rowpct' | 'totpct'
+
+// ── Helpers ───────────────────────────────────────────────────────────
+function rowSum(i) { return CM_RAW[i].reduce((a,b) => a+b, 0); }
+
+function cellValue(i, j) {
+  if (displayMode === 'count')  return CM_RAW[i][j];
+  if (displayMode === 'rowpct') return ((CM_RAW[i][j] / rowSum(i)) * 100).toFixed(1) + '%';
+  return ((CM_RAW[i][j] / TOTAL) * 100).toFixed(1) + '%';
+}
+
+function cellAlpha(i, j) {
+  // opacity driven by count, normalized to row max for 'rowpct', absolute for rest
+  const val = CM_RAW[i][j];
+  const rMax = Math.max(...CM_RAW[i]);
+  const norm = i === j ? 1 : val / rMax; // diagonal always full opacity
+  return 0.12 + norm * 0.74;
+}
+
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return {r,g,b};
+}
+
+function getTextColor(hex, alpha) {
+  const {r,g,b} = hexToRgb(hex);
+  const isDark = document.body.classList.contains('dark');
+  const bgR = isDark ? 26 : 255;
+  const bgG = isDark ? 25 : 255;
+  const bgB = isDark ? 23 : 255;
+  const br = Math.round(r * alpha + bgR*(1-alpha));
+  const bg_ = Math.round(g * alpha + bgG*(1-alpha));
+  const bb = Math.round(b * alpha + bgB*(1-alpha));
+  const lum = (0.299*br + 0.587*bg_ + 0.114*bb) / 255;
+  // In dark mode be more generous with white text
+  const threshold = isDark ? 0.45 : 0.55;
+  return lum > threshold ? '#1a1a1a' : '#ffffff';
+}
+
+// ── Build matrix ──────────────────────────────────────────────────────
+function buildMatrix() {
+  const grid = document.getElementById('matrixGrid');
+  const colLabels = document.getElementById('colLabels');
+  grid.innerHTML = '';
+  colLabels.innerHTML = '';
+
+  // Column headers
+  colLabels.innerHTML = '<div class="spacer"></div>';
+  WORLDS.forEach(w => {
+    const el = document.createElement('div');
+    el.className = 'col-label';
+    el.style.background = w.dimColor;
+    el.style.color = w.color;
+    el.textContent = w.id;
+    colLabels.appendChild(el);
+  });
+
+  // Rows
+  WORLDS.forEach((actualW, i) => {
+    // Row label
+    const rl = document.createElement('div');
+    rl.className = 'row-label';
+    rl.innerHTML = `<span class="row-dot" style="background:${actualW.color}"></span><span>${actualW.id}</span>`;
+    grid.appendChild(rl);
+
+    // Cells
+    WORLDS.forEach((predW, j) => {
+      const cell = document.createElement('div');
+      cell.className = 'matrix-cell' + (i === j ? ' diagonal' : '');
+      const alpha = cellAlpha(i, j);
+      const {r,g,b} = hexToRgb(actualW.color);
+      const bg = `rgba(${r},${g},${b},${alpha})`;
+      cell.style.background = bg;
+      const textCol = getTextColor(actualW.color, alpha);
+      cell.style.color = textCol;
+
+      const cnt = document.createElement('div');
+      cnt.className = 'cell-count';
+      cnt.textContent = cellValue(i, j);
+
+      // sub-label
+      const pct = document.createElement('div');
+      pct.className = 'cell-pct';
+      if (displayMode === 'count') {
+        pct.textContent = ((CM_RAW[i][j] / rowSum(i)) * 100).toFixed(0) + '%';
+      } else if (displayMode === 'rowpct') {
+        pct.textContent = `n=${CM_RAW[i][j]}`;
+      } else {
+        pct.textContent = `n=${CM_RAW[i][j]}`;
+      }
+
+      cell.appendChild(cnt);
+      cell.appendChild(pct);
+
+      // Tooltip events
+      cell.addEventListener('mouseenter', (e) => showTooltip(e, i, j));
+      cell.addEventListener('mousemove',  (e) => moveTooltip(e));
+      cell.addEventListener('mouseleave', hideTooltip);
+
+      grid.appendChild(cell);
+    });
+  });
+}
+
+// ── Tooltip ───────────────────────────────────────────────────────────
+function showTooltip(e, i, j) {
+  const tt = document.getElementById('tooltip');
+  const isCorrect = i === j;
+  document.getElementById('tt-head').textContent =
+    isCorrect
+      ? `✓ Correct: ${WORLDS[i].name}`
+      : `✗ Actual: ${WORLDS[i].name} → Predicted: ${WORLDS[j].name}`;
+  document.getElementById('tt-head').style.color = isCorrect ? WORLDS[i].color : '#ff6b35';
+  document.getElementById('tt-count').textContent = CM_RAW[i][j];
+  document.getElementById('tt-rowpct').textContent = ((CM_RAW[i][j]/rowSum(i))*100).toFixed(1) + '%';
+  document.getElementById('tt-totpct').textContent = ((CM_RAW[i][j]/TOTAL)*100).toFixed(1) + '%';
+  document.getElementById('tt-note').textContent = NOTES[i][j];
+  tt.classList.add('visible');
+  moveTooltip(e);
+}
+
+function moveTooltip(e) {
+  const tt = document.getElementById('tooltip');
+  let x = e.clientX + 16;
+  let y = e.clientY + 16;
+  const tw = tt.offsetWidth || 240;
+  const th = tt.offsetHeight || 120;
+  if (x + tw > window.innerWidth - 10) x = e.clientX - tw - 16;
+  if (y + th > window.innerHeight - 10) y = e.clientY - th - 16;
+  tt.style.left = x + 'px';
+  tt.style.top  = y + 'px';
+}
+
+function hideTooltip() {
+  document.getElementById('tooltip').classList.remove('visible');
+}
+
+// ── Side panel ────────────────────────────────────────────────────────
+function buildSidePanel() {
+  // Per-world accuracy
+  const ws = document.getElementById('worldStats');
+  ws.innerHTML = '';
+  WORLDS.forEach((w, i) => {
+    const correct = CM_RAW[i][i];
+    const total   = rowSum(i);
+    const acc     = (correct / total * 100).toFixed(1);
+    const precision = (CM_RAW[i][i] / CM_RAW.reduce((s, row) => s + row[i], 0) * 100).toFixed(1);
+    ws.innerHTML += `
+      <div class="ws-row">
+        <div class="ws-top">
+          <span class="ws-name"><span class="ws-dot" style="background:${w.color}"></span>${w.name}</span>
+          <span class="ws-vals">Rec: ${acc}% · Prec: ${precision}%</span>
+        </div>
+        <div class="ws-bar-track">
+          <div class="ws-bar-fill" style="width:${acc}%;background:${w.color}"></div>
+        </div>
+      </div>`;
+  });
+
+  // Sensor signatures
+  const sc = document.getElementById('sigChart');
+  sc.innerHTML = '';
+  const maxVal = 1.0;
+  SIG_LABELS.forEach((label, si) => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'sig-row';
+    let barsHtml = '';
+    WORLDS.forEach(w => {
+      const v = SIGS[w.id][si];
+      const pct = (v / maxVal * 100).toFixed(0);
+      barsHtml += `
+        <div class="sig-bar-wrap" title="${w.name}: ${v}">
+          <div class="sig-bar" style="height:${pct}%;background:${w.color};opacity:0.85;min-height:2px;width:100%"></div>
+        </div>`;
+    });
+    rowEl.innerHTML = `
+      <span class="sig-label">${label}</span>
+      <div class="sig-bars">${barsHtml}</div>`;
+    sc.appendChild(rowEl);
+  });
+
+  // World tags under sig chart
+  const tagWrap = document.createElement('div');
+  tagWrap.style.display = 'flex';
+  tagWrap.style.marginLeft = '78px';
+  tagWrap.style.gap = '2px';
+  WORLDS.forEach(w => {
+    const tag = document.createElement('div');
+    tag.className = 'sig-tag';
+    tag.style.background = w.color + '22';
+    tag.style.color = w.color;
+    tag.style.flex = '1';
+    tag.style.textAlign = 'center';
+    tag.style.fontSize = '9px';
+    tag.style.fontWeight = '700';
+    tag.style.padding = '2px 0';
+    tag.style.borderRadius = '2px';
+    tag.textContent = w.id;
+    tagWrap.appendChild(tag);
+  });
+  sc.appendChild(tagWrap);
+
+  // Legend
+  const leg = document.getElementById('legend');
+  const DESCS = [
+    'Steady Poisson flux; mid piezo/plasma; isotropic spread ±45°.',
+    'Sparse burst events; KEY: narrow directionality ±12°; elevated rate variance.',
+    'Spreading cloud; broad spread ±35°; distinct plasma elevation.',
+    'Runaway cascade; all channels elevated; near-omnidirectional ±80°.',
+  ];
+  leg.innerHTML = '';
+  WORLDS.forEach((w, i) => {
+    leg.innerHTML += `
+      <div class="legend-item">
+        <span class="legend-dot" style="background:${w.color}"></span>
+        <span><strong>${w.name} (${w.sub})</strong> — ${DESCS[i]}</span>
+      </div>`;
+  });
+}
+
+// ── Summary stats ─────────────────────────────────────────────────────
+function buildSummary() {
+  const correct = WORLDS.reduce((s,_,i) => s + CM_RAW[i][i], 0);
+  const acc = (correct / TOTAL * 100).toFixed(1);
+  document.getElementById('stat-acc').textContent = acc + '%';
+  document.getElementById('stat-n').textContent = TOTAL;
+
+  const accs = WORLDS.map((_,i) => ({ id: WORLDS[i].id, a: CM_RAW[i][i]/rowSum(i) }));
+  accs.sort((a,b) => b.a - a.a);
+  document.getElementById('stat-best').textContent = 'World ' + accs[0].id;
+  document.getElementById('stat-hard').textContent = 'World ' + accs[accs.length-1].id;
+}
+
+// ── Mode switch ───────────────────────────────────────────────────────
+function setMode(mode) {
+  displayMode = mode;
+  document.querySelectorAll('.mode-tab').forEach((t,i) => {
+    t.classList.toggle('active', ['count','rowpct','totpct'][i] === mode);
+  });
+  buildMatrix();
+}
+
+// ── Dark mode ─────────────────────────────────────────────────────────
+function toggleDark() {
+  document.body.classList.toggle('dark');
+  buildMatrix(); // recalculate text colors for dark background
+}
+
+// ── Export PNG ────────────────────────────────────────────────────────
+async function exportPNG() {
+  const btn = document.getElementById('exportBtn');
+  btn.textContent = 'Generating…';
+  btn.disabled = true;
+
+  try {
+    // Use html2canvas via CDN
+    if (!window.html2canvas) {
+      await loadScript('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js');
+    }
+    const el = document.getElementById('exportTarget');
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      backgroundColor: getComputedStyle(document.body).getPropertyValue('--surface').trim() || '#ffffff',
+      useCORS: true,
+      logging: false,
+    });
+    const link = document.createElement('a');
+    link.download = 'confusion_matrix_debris.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    notify('PNG exported!');
+  } catch(err) {
+    notify('Export failed — try right-click screenshot');
+    console.error(err);
+  }
+  btn.textContent = '↓ Export PNG';
+  btn.disabled = false;
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+function notify(msg) {
+  const n = document.getElementById('notify');
+  n.textContent = msg;
+  n.classList.add('show');
+  setTimeout(() => n.classList.remove('show'), 2200);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────
+buildMatrix();
+buildSidePanel();
+buildSummary();
+</script>
+</body>
+</html>
