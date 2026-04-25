@@ -1,0 +1,2188 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orbital Debris Sentinel — Discriminate. Survive. Report.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --font-display: 'Space Mono', monospace;
+      --font-body: 'Space Grotesk', sans-serif;
+      /* Deep space sci-fi palette */
+      --color-bg: #030510;
+      --color-surface: rgba(8,12,32,0.85);
+      --color-surface-2: rgba(12,18,48,0.7);
+      --color-border: rgba(80,140,255,0.18);
+      --color-text: #d8e4ff;
+      --color-text-muted: #7a8bb5;
+      --color-text-faint: #3a4870;
+      /* World color identities from the paper */
+      --world-a: #00c8ff;    /* World A: Background — calm blue */
+      --world-b: #ff3060;    /* World B: Stealth — danger red */
+      --world-c: #ffaa00;    /* World C: Accidental fragmentation — warning amber */
+      --world-d: #b44fff;    /* World D: Kessler Cascade — violet/malevolent purple */
+      --color-primary: #4a8fff;
+      --color-accent: #00f5c8;
+      --color-danger: #ff3060;
+      --color-warning: #ffaa00;
+      --color-success: #00e676;
+      --panel-blur: 14px;
+      --panel-radius: 8px;
+      --transition-ui: 180ms cubic-bezier(0.16,1,0.3,1);
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    html{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+    body{
+      overflow:hidden;width:100vw;height:100dvh;
+      background:var(--color-bg);
+      font-family:var(--font-body);
+      color:var(--color-text);
+      font-size:15px;
+      user-select:none;
+    }
+
+    /* ── CANVAS ── */
+    #canvas{display:block;position:fixed;inset:0;z-index:0;}
+
+    /* ── SHARED PANEL ── */
+    .panel{
+      background:var(--color-surface);
+      backdrop-filter:blur(var(--panel-blur));
+      border:1px solid var(--color-border);
+      border-radius:var(--panel-radius);
+      padding:16px 20px;
+    }
+
+    /* ──────────────────────────────────────────────
+       TITLE / SPLASH SCREEN
+    ────────────────────────────────────────────── */
+    #splash{
+      position:fixed;inset:0;z-index:100;
+      display:flex;align-items:center;justify-content:center;
+      background:radial-gradient(ellipse at 50% 40%,rgba(10,20,60,0.98) 0%,rgba(3,5,16,1) 100%);
+    }
+    .splash-inner{text-align:center;max-width:760px;padding:40px 24px;}
+    .splash-logo svg{display:inline-block;margin-bottom:20px;}
+    .splash-title{
+      font-family:var(--font-display);
+      font-size:clamp(1.6rem,4vw,2.8rem);
+      letter-spacing:0.08em;
+      color:#fff;
+      line-height:1.1;
+      margin-bottom:10px;
+      text-shadow:0 0 40px rgba(74,143,255,0.6);
+    }
+    .splash-subtitle{
+      font-size:0.95rem;color:var(--color-text-muted);margin-bottom:28px;
+      font-style:italic;letter-spacing:0.04em;
+    }
+    .splash-worlds{
+      display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:32px;
+    }
+    .world-badge{
+      padding:8px 18px;border-radius:6px;font-size:0.8rem;font-weight:600;
+      letter-spacing:0.06em;text-transform:uppercase;border:1px solid;
+      cursor:pointer;transition:all var(--transition-ui);
+    }
+    .world-badge.a{color:var(--world-a);border-color:var(--world-a);background:rgba(0,200,255,0.07);}
+    .world-badge.b{color:var(--world-b);border-color:var(--world-b);background:rgba(255,48,96,0.07);}
+    .world-badge.c{color:var(--world-c);border-color:var(--world-c);background:rgba(255,170,0,0.07);}
+    .world-badge.d{color:var(--world-d);border-color:var(--world-d);background:rgba(180,79,255,0.07);}
+    .world-badge:hover{transform:translateY(-2px);box-shadow:0 4px 20px rgba(0,0,0,0.4);}
+    .splash-buttons{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:24px;}
+    .btn{
+      padding:13px 32px;border-radius:7px;font-family:var(--font-display);
+      font-size:0.85rem;font-weight:700;letter-spacing:0.06em;
+      cursor:pointer;border:none;transition:all var(--transition-ui);
+    }
+    .btn-primary{background:var(--color-primary);color:#fff;}
+    .btn-primary:hover{background:#6aabff;transform:translateY(-2px);box-shadow:0 6px 24px rgba(74,143,255,0.45);}
+    .btn-secondary{background:transparent;color:var(--color-text);border:1px solid var(--color-border);}
+    .btn-secondary:hover{background:rgba(255,255,255,0.05);border-color:rgba(80,140,255,0.4);}
+    .splash-byline{font-size:0.75rem;color:var(--color-text-faint);letter-spacing:0.05em;}
+    .splash-byline strong{color:var(--color-text-muted);}
+
+    /* ──────────────────────────────────────────────
+       HUD — TOP BAR
+    ────────────────────────────────────────────── */
+    #hud{
+      position:fixed;top:0;left:0;right:0;z-index:50;
+      display:none;
+      padding:10px 18px;
+      flex-direction:row;align-items:center;gap:16px;
+      background:rgba(3,5,16,0.75);
+      backdrop-filter:blur(12px);
+      border-bottom:1px solid var(--color-border);
+    }
+    .hud-world-label{
+      font-family:var(--font-display);font-size:0.7rem;letter-spacing:0.1em;
+      text-transform:uppercase;padding:4px 12px;border-radius:4px;border:1px solid;
+      font-weight:700;
+    }
+    .hud-world-label.a{color:var(--world-a);border-color:var(--world-a);background:rgba(0,200,255,0.1);}
+    .hud-world-label.b{color:var(--world-b);border-color:var(--world-b);background:rgba(255,48,96,0.1);}
+    .hud-world-label.c{color:var(--world-c);border-color:var(--world-c);background:rgba(255,170,0,0.1);}
+    .hud-world-label.d{color:var(--world-d);border-color:var(--world-d);background:rgba(180,79,255,0.1);}
+    .hud-sep{width:1px;height:28px;background:var(--color-border);}
+    .hud-stat{display:flex;flex-direction:column;gap:1px;}
+    .hud-stat-label{font-size:0.6rem;color:var(--color-text-faint);letter-spacing:0.08em;text-transform:uppercase;}
+    .hud-stat-val{font-family:var(--font-display);font-size:0.85rem;font-variant-numeric:tabular-nums lining-nums;font-weight:700;}
+    .hud-fill{flex:1;}
+    .hud-time{font-family:var(--font-display);font-size:0.75rem;color:var(--color-text-muted);}
+    .btn-sm{
+      padding:5px 14px;border-radius:5px;font-family:var(--font-display);font-size:0.7rem;
+      font-weight:700;letter-spacing:0.05em;cursor:pointer;border:1px solid var(--color-border);
+      background:rgba(255,255,255,0.05);color:var(--color-text);
+      transition:all var(--transition-ui);
+    }
+    .btn-sm:hover{background:rgba(255,255,255,0.1);border-color:rgba(80,140,255,0.4);}
+
+    /* ──────────────────────────────────────────────
+       SENSOR PANEL — right side
+    ────────────────────────────────────────────── */
+    #sensor-panel{
+      position:fixed;top:60px;right:18px;z-index:50;
+      width:280px;display:none;
+    }
+    .sensor-title{
+      font-family:var(--font-display);font-size:0.68rem;letter-spacing:0.1em;
+      text-transform:uppercase;color:var(--color-text-muted);margin-bottom:14px;
+    }
+    .sensor-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+    .sensor-label{flex:1;font-size:0.72rem;color:var(--color-text-muted);}
+    .sensor-bar-wrap{flex:2;height:6px;background:rgba(255,255,255,0.07);border-radius:3px;overflow:hidden;}
+    .sensor-bar{height:100%;border-radius:3px;transition:width 0.3s ease;}
+    .sensor-val{font-family:var(--font-display);font-size:0.72rem;width:42px;text-align:right;font-variant-numeric:tabular-nums;}
+    .sensor-chart-area{
+      margin-top:14px;border-top:1px solid var(--color-border);padding-top:12px;
+    }
+    .sensor-chart-label{font-size:0.65rem;color:var(--color-text-faint);margin-bottom:6px;letter-spacing:0.06em;text-transform:uppercase;}
+    #sensor-canvas{width:100%;height:72px;border-radius:4px;}
+
+    /* ── SENSOR LEGEND ── */
+    .sensor-legend {
+      margin-top: 16px;
+      border-top: 1px solid var(--color-border);
+      padding-top: 12px;
+    }
+    .sensor-legend-title {
+      font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--color-text-faint); margin-bottom: 8px;
+    }
+    .sensor-key-row {
+      display: flex; align-items: flex-start; gap: 7px;
+      margin-bottom: 7px; font-size: 0.68rem; line-height: 1.45;
+    }
+    .sensor-key-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      flex-shrink: 0; margin-top: 3px;
+    }
+    .sensor-key-body { color: var(--color-text-muted); }
+    .sensor-key-body strong { color: var(--color-text); font-weight: 600; }
+
+    /* ── WORLD CONTEXT ANNOTATION ── */
+    .world-context-bar {
+      position: fixed; top: 54px; left: 0; right: 0; z-index: 45;
+      padding: 7px 20px;
+      display: none;
+      align-items: center; gap: 16px;
+      background: rgba(3,5,16,0.82); backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--color-border);
+      font-size: 0.72rem;
+      flex-wrap: wrap;
+    }
+    .wcb-label { font-family: var(--font-display); font-size: 0.68rem;
+      letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-faint); }
+    .wcb-val { font-family: var(--font-display); font-size: 0.72rem; font-weight: 700; }
+    .wcb-sep { width: 1px; height: 16px; background: var(--color-border); }
+    .wcb-desc { color: var(--color-text-muted); font-size: 0.68rem; flex: 1; font-style: italic;
+      min-width: 200px; }
+
+    /* ── HELP OVERLAY ── */
+    #help-overlay {
+      position: fixed; inset: 0; z-index: 300;
+      display: none; align-items: center; justify-content: center;
+      background: rgba(3,5,16,0.92); backdrop-filter: blur(16px);
+    }
+    .help-inner {
+      max-width: 680px; width: 90%; background: rgba(12,18,48,0.9);
+      border: 1px solid var(--color-border); border-radius: 12px;
+      padding: 32px; max-height: 90vh; overflow-y: auto;
+    }
+    .help-title {
+      font-family: var(--font-display); font-size: 1rem;
+      letter-spacing: 0.08em; color: var(--color-accent);
+      margin-bottom: 20px;
+    }
+    .help-section { margin-bottom: 20px; }
+    .help-section h3 {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--color-text-muted);
+      margin-bottom: 10px; border-bottom: 1px solid var(--color-border);
+      padding-bottom: 6px;
+    }
+    .help-row {
+      display: flex; gap: 12px; margin-bottom: 8px;
+      font-size: 0.72rem; line-height: 1.55;
+    }
+    .help-row-key {
+      font-family: var(--font-display); font-size: 0.68rem;
+      color: var(--color-accent); width: 110px; flex-shrink: 0;
+    }
+    .help-row-val { color: var(--color-text-muted); }
+    .help-row-val strong { color: var(--color-text); }
+    .help-close-btn {
+      margin-top: 20px; width: 100%;
+      padding: 10px; border-radius: 6px;
+      background: var(--color-primary); border: none;
+      color: #fff; font-family: var(--font-display);
+      font-size: 0.75rem; letter-spacing: 0.06em; cursor: pointer;
+    }
+
+    /* ── HELP BUTTON ── */
+    #help-btn {
+      position: fixed; bottom: 18px; right: 18px; z-index: 60;
+      display: none;
+      width: 36px; height: 36px; border-radius: 50%;
+      background: rgba(74,143,255,0.15); border: 1px solid var(--color-border);
+      color: var(--color-primary); font-family: var(--font-display);
+      font-size: 0.85rem; font-weight: 700; cursor: pointer;
+      align-items: center; justify-content: center;
+      transition: background 0.15s;
+    }
+    #help-btn:hover { background: rgba(74,143,255,0.3); }
+
+    /* ── RATE CHART ANNOTATIONS ── */
+    .chart-annotation {
+      position: absolute; top: 0; right: 0;
+      font-size: 0.6rem; color: var(--color-text-faint);
+      font-family: var(--font-display); letter-spacing: 0.05em;
+      padding: 2px 4px;
+    }
+    .sensor-chart-wrap { position: relative; }
+
+
+    /* ──────────────────────────────────────────────
+       WORLD INFO PANEL — bottom left
+    ────────────────────────────────────────────── */
+    #world-info{
+      position:fixed;bottom:18px;left:18px;z-index:50;
+      width:300px;display:none;
+    }
+    .world-info-title{
+      font-family:var(--font-display);font-size:0.8rem;letter-spacing:0.06em;
+      margin-bottom:8px;
+    }
+    .world-info-desc{font-size:0.72rem;color:var(--color-text-muted);line-height:1.55;margin-bottom:12px;}
+    .world-params{display:flex;flex-direction:column;gap:5px;}
+    .world-param{display:flex;justify-content:space-between;font-size:0.7rem;}
+    .world-param-key{color:var(--color-text-faint);}
+    .world-param-val{font-family:var(--font-display);font-size:0.7rem;font-variant-numeric:tabular-nums;}
+
+    /* ──────────────────────────────────────────────
+       CLASSIFICATION PANEL — bottom right (game mode)
+    ────────────────────────────────────────────── */
+    #classify-panel{
+      position:fixed;bottom:18px;right:18px;z-index:50;
+      width:290px;display:none;
+    }
+    .classify-title{
+      font-family:var(--font-display);font-size:0.68rem;letter-spacing:0.1em;
+      text-transform:uppercase;color:var(--color-text-muted);margin-bottom:12px;
+    }
+    .classify-hint{font-size:0.72rem;color:var(--color-text-muted);margin-bottom:14px;line-height:1.5;}
+    .classify-buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+    .classify-btn{
+      flex:1;padding:10px 8px;border-radius:6px;font-family:var(--font-display);
+      font-size:0.7rem;font-weight:700;letter-spacing:0.05em;cursor:pointer;
+      border:1px solid;transition:all var(--transition-ui);text-align:center;
+    }
+    .classify-btn.a{color:var(--world-a);border-color:var(--world-a);background:rgba(0,200,255,0.07);}
+    .classify-btn.b{color:var(--world-b);border-color:var(--world-b);background:rgba(255,48,96,0.07);}
+    .classify-btn.c{color:var(--world-c);border-color:var(--world-c);background:rgba(255,170,0,0.07);}
+    .classify-btn.d{color:var(--world-d);border-color:var(--world-d);background:rgba(180,79,255,0.07);}
+    .classify-btn:hover{transform:translateY(-2px);filter:brightness(1.25);}
+    #classify-result{
+      margin-top:12px;font-size:0.8rem;text-align:center;
+      font-family:var(--font-display);min-height:28px;
+    }
+
+    /* ──────────────────────────────────────────────
+       SCORE DISPLAY (game mode)
+    ────────────────────────────────────────────── */
+    #score-panel{
+      position:fixed;top:60px;left:18px;z-index:50;
+      width:200px;display:none;
+    }
+    .score-big{
+      font-family:var(--font-display);font-size:2.4rem;font-weight:700;
+      color:var(--color-accent);line-height:1;margin-bottom:4px;
+      font-variant-numeric:tabular-nums lining-nums;
+    }
+    .score-label{font-size:0.65rem;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.08em;}
+    .score-streak{
+      margin-top:10px;font-family:var(--font-display);font-size:0.8rem;
+      color:var(--color-warning);
+    }
+    #lives-display{margin-top:8px;display:flex;gap:6px;}
+    .life-dot{width:10px;height:10px;border-radius:50%;background:var(--color-danger);
+      box-shadow:0 0 8px var(--color-danger);}
+
+    /* ──────────────────────────────────────────────
+       MODE SWITCHER
+    ────────────────────────────────────────────── */
+    #mode-tabs{
+      position:fixed;top:60px;left:50%;transform:translateX(-50%);
+      z-index:50;display:none;
+      background:rgba(3,5,16,0.8);backdrop-filter:blur(12px);
+      border:1px solid var(--color-border);border-radius:8px;
+      padding:4px;display:flex;gap:4px;
+    }
+    .mode-tab{
+      padding:6px 18px;border-radius:5px;font-size:0.7rem;font-weight:600;
+      letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;
+      color:var(--color-text-muted);background:transparent;border:none;
+      transition:all var(--transition-ui);
+    }
+    .mode-tab.active{background:rgba(74,143,255,0.2);color:var(--color-primary);}
+    .mode-tab:hover:not(.active){background:rgba(255,255,255,0.05);}
+
+    /* ──────────────────────────────────────────────
+       GAME OVER / RESULTS — FULL BREAKDOWN SCREEN
+    ────────────────────────────────────────────── */
+    #results-overlay{
+      position:fixed;inset:0;z-index:200;
+      display:none;align-items:flex-start;justify-content:center;
+      background:rgba(3,5,16,0.96);backdrop-filter:blur(18px);
+      overflow-y:auto;padding:24px 16px;
+    }
+    .results-inner{
+      width:100%;max-width:820px;padding:32px 0 40px;
+    }
+    /* Header row */
+    .results-header{
+      display:flex;align-items:center;justify-content:space-between;
+      margin-bottom:24px;flex-wrap:wrap;gap:12px;
+    }
+    .results-title{
+      font-family:var(--font-display);font-size:1.4rem;
+      color:var(--color-accent);letter-spacing:0.08em;
+    }
+    .results-subtitle{color:var(--color-text-muted);font-size:0.8rem;margin-top:4px;}
+    /* Top stat strip */
+    .results-stat-strip{
+      display:flex;gap:0;border:1px solid var(--color-border);border-radius:8px;
+      overflow:hidden;margin-bottom:28px;
+    }
+    .results-stat-cell{
+      flex:1;text-align:center;padding:14px 10px;
+      border-right:1px solid var(--color-border);
+    }
+    .results-stat-cell:last-child{border-right:none;}
+    .results-stat-val{
+      font-family:var(--font-display);font-size:1.7rem;
+      font-variant-numeric:tabular-nums;color:#fff;display:block;
+    }
+    .results-stat-label{
+      font-size:0.6rem;text-transform:uppercase;letter-spacing:0.1em;
+      color:var(--color-text-faint);margin-top:3px;
+    }
+    .results-stat-cell.overall .results-stat-val{color:var(--color-accent);font-size:2rem;}
+    /* World breakdown grid */
+    .world-breakdown-grid{
+      display:grid;grid-template-columns:repeat(2,1fr);gap:16px;
+      margin-bottom:28px;
+    }
+    @media(max-width:580px){.world-breakdown-grid{grid-template-columns:1fr;}}
+    .world-card{
+      border-radius:10px;padding:18px 20px;
+      background:rgba(8,12,32,0.6);
+      border:1px solid var(--color-border);
+      position:relative;overflow:hidden;
+    }
+    .world-card::before{
+      content:'';position:absolute;top:0;left:0;right:0;height:2px;
+    }
+    .world-card.a::before{background:var(--world-a);}
+    .world-card.b::before{background:var(--world-b);}
+    .world-card.c::before{background:var(--world-c);}
+    .world-card.d::before{background:var(--world-d);}
+    .world-card.not-seen{opacity:0.38;}
+    .wc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+    .wc-name{
+      font-family:var(--font-display);font-size:0.72rem;
+      letter-spacing:0.08em;text-transform:uppercase;
+    }
+    .wc-name.a{color:var(--world-a);}
+    .wc-name.b{color:var(--world-b);}
+    .wc-name.c{color:var(--world-c);}
+    .wc-name.d{color:var(--world-d);}
+    .wc-accuracy-badge{
+      font-family:var(--font-display);font-size:1.2rem;
+      font-variant-numeric:tabular-nums;font-weight:700;
+    }
+    /* Accuracy bar */
+    .wc-acc-bar-wrap{
+      height:5px;background:rgba(255,255,255,0.07);border-radius:3px;
+      margin-bottom:14px;overflow:hidden;
+    }
+    .wc-acc-bar{height:100%;border-radius:3px;transition:width 0.6s ease;}
+    /* Confusion detail */
+    .wc-confusion{
+      font-size:0.68rem;color:var(--color-text-faint);
+      margin-bottom:14px;line-height:1.6;
+    }
+    .wc-confusion strong{color:var(--color-text-muted);}
+    /* Sensor signature mini-chart */
+    .wc-sig-title{
+      font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;
+      color:var(--color-text-faint);margin-bottom:8px;
+    }
+    .wc-sig-bars{display:flex;flex-direction:column;gap:5px;}
+    .wc-sig-row{display:flex;align-items:center;gap:8px;}
+    .wc-sig-label{font-size:0.62rem;color:var(--color-text-faint);width:68px;flex-shrink:0;}
+    .wc-sig-track{
+      flex:1;height:5px;background:rgba(255,255,255,0.06);
+      border-radius:3px;overflow:hidden;position:relative;
+    }
+    .wc-sig-fill{
+      height:100%;border-radius:3px;
+    }
+    /* Discriminant tip */
+    .wc-tip{
+      margin-top:12px;padding:8px 10px;border-radius:5px;
+      background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);
+      font-size:0.67rem;color:var(--color-text-muted);line-height:1.55;
+    }
+    .wc-tip-head{
+      font-family:var(--font-display);font-size:0.6rem;letter-spacing:0.07em;
+      text-transform:uppercase;margin-bottom:3px;
+    }
+    .wc-tip-head.a{color:var(--world-a);}
+    .wc-tip-head.b{color:var(--world-b);}
+    .wc-tip-head.c{color:var(--world-c);}
+    .wc-tip-head.d{color:var(--world-d);}
+    /* Not-seen state */
+    .wc-not-seen{
+      font-size:0.72rem;color:var(--color-text-faint);
+      text-align:center;padding:10px 0;font-style:italic;
+    }
+    /* Confusion matrix */
+    .confusion-section{
+      margin-bottom:28px;
+    }
+    .section-title{
+      font-family:var(--font-display);font-size:0.68rem;letter-spacing:0.1em;
+      text-transform:uppercase;color:var(--color-text-muted);
+      margin-bottom:12px;
+    }
+    .conf-matrix{
+      display:grid;grid-template-columns:80px repeat(4,1fr);
+      gap:2px;font-size:0.62rem;font-family:var(--font-display);
+    }
+    .conf-cell{
+      padding:7px 4px;text-align:center;border-radius:3px;
+      font-variant-numeric:tabular-nums;
+    }
+    .conf-header{color:var(--color-text-faint);background:transparent;font-size:0.58rem;letter-spacing:0.06em;}
+    .conf-row-label{display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:0.6rem;color:var(--color-text-faint);}
+    .conf-val{background:rgba(255,255,255,0.04);color:var(--color-text-muted);}
+    .conf-diag{font-weight:700;}
+    .conf-diag.a{background:rgba(0,200,255,0.12);color:var(--world-a);}
+    .conf-diag.b{background:rgba(255,48,96,0.12);color:var(--world-b);}
+    .conf-diag.c{background:rgba(255,170,0,0.12);color:var(--world-c);}
+    .conf-diag.d{background:rgba(180,79,255,0.12);color:var(--world-d);}
+    /* Results action row */
+    .results-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+
+    /* ──────────────────────────────────────────────
+       IMPACT FLASH
+    ────────────────────────────────────────────── */
+    #impact-flash{
+      position:fixed;inset:0;z-index:30;pointer-events:none;opacity:0;
+      background:rgba(255,255,255,0.04);
+      transition:opacity 0.08s ease;
+    }
+
+    /* ──────────────────────────────────────────────
+       TOOLTIP
+    ────────────────────────────────────────────── */
+    #tooltip{
+      position:fixed;z-index:80;pointer-events:none;
+      background:rgba(8,12,32,0.95);border:1px solid var(--color-border);
+      border-radius:6px;padding:8px 12px;font-size:0.72rem;
+      color:var(--color-text);line-height:1.5;
+      display:none;max-width:220px;
+    }
+
+    /* ──────────────────────────────────────────────
+       NOTIFICATION TOASTS
+    ────────────────────────────────────────────── */
+    #toast-area{
+      position:fixed;top:70px;left:50%;transform:translateX(-50%);
+      z-index:90;display:flex;flex-direction:column;gap:8px;
+      align-items:center;pointer-events:none;
+    }
+    .toast{
+      padding:10px 24px;border-radius:6px;font-family:var(--font-display);
+      font-size:0.78rem;letter-spacing:0.05em;animation:toastIn 0.3s ease forwards;
+      opacity:0;
+    }
+    @keyframes toastIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+    .toast.correct{background:rgba(0,230,118,0.15);border:1px solid rgba(0,230,118,0.3);color:var(--color-success);}
+    .toast.wrong{background:rgba(255,48,96,0.12);border:1px solid rgba(255,48,96,0.3);color:var(--color-danger);}
+    .toast.info{background:rgba(74,143,255,0.12);border:1px solid rgba(74,143,255,0.3);color:var(--color-primary);}
+
+    /* loading bar */
+    #loading-bar{position:fixed;bottom:0;left:0;height:2px;background:var(--color-primary);width:0%;z-index:300;transition:width 0.2s;}
+
+    /* responsive  */
+    @media(max-width:600px){
+      #sensor-panel,#world-info,#score-panel{width:calc(100vw - 36px);}
+      #sensor-panel{right:18px;top:auto;bottom:18px;}
+      #world-info{display:none!important;}
+      #classify-panel{left:18px;right:18px;width:auto;}
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+<div id="impact-flash"></div>
+<div id="loading-bar"></div>
+<div id="toast-area"></div>
+<div id="tooltip"></div>
+
+<!-- ── SPLASH ── -->
+<div id="splash">
+  <div class="splash-inner">
+    <div class="splash-logo">
+      <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Orbital Debris Sentinel logo">
+        <circle cx="28" cy="28" r="26" stroke="#4a8fff" stroke-width="1.5" opacity="0.4"/>
+        <circle cx="28" cy="28" r="18" stroke="#4a8fff" stroke-width="1" opacity="0.3"/>
+        <circle cx="28" cy="28" r="4" fill="#00f5c8"/>
+        <!-- orbit ellipses -->
+        <ellipse cx="28" cy="28" rx="24" ry="9" stroke="#4a8fff" stroke-width="1" opacity="0.5" transform="rotate(-25 28 28)"/>
+        <ellipse cx="28" cy="28" rx="24" ry="9" stroke="#ff3060" stroke-width="0.8" opacity="0.35" transform="rotate(50 28 28)"/>
+        <!-- small debris dots -->
+        <circle cx="44" cy="20" r="2.5" fill="#00c8ff" opacity="0.9"/>
+        <circle cx="12" cy="36" r="1.8" fill="#ff3060" opacity="0.9"/>
+        <circle cx="38" cy="42" r="1.5" fill="#ffaa00" opacity="0.8"/>
+        <circle cx="16" cy="16" r="1.2" fill="#4a8fff" opacity="0.7"/>
+        <circle cx="48" cy="34" r="1" fill="#00f5c8" opacity="0.7"/>
+      </svg>
+    </div>
+    <h1 class="splash-title">ORBITAL DEBRIS SENTINEL</h1>
+    <p class="splash-subtitle">Discriminating Stealth Debris Releases Using Small-Particle Impact Sensors</p>
+
+    <div class="splash-worlds">
+      <div class="world-badge a">World A · Background</div>
+      <div class="world-badge b">World B · Stealth Release</div>
+      <div class="world-badge c">World C · Accidental</div>
+      <div class="world-badge d">World D · Kessler Cascade</div>
+    </div>
+
+    <div class="splash-buttons">
+      <button class="btn btn-primary" id="btn-game" data-testid="btn-start-game">▶ Play Game</button>
+      <button class="btn btn-secondary" id="btn-sim" data-testid="btn-simulation">Simulation Mode</button>
+    </div>
+
+    <p class="splash-byline">Based on <strong>Eigbe (2025)</strong> — Stanford AA · ECLIPSE Lab</p>
+  </div>
+</div>
+
+<!-- ── HUD ── -->
+<div id="hud">
+  <div id="hud-world-label" class="hud-world-label a">World A</div>
+  <div class="hud-sep"></div>
+  <div class="hud-stat">
+    <span class="hud-stat-label">Impact Rate</span>
+    <span class="hud-stat-val" id="hud-rate" data-testid="hud-rate">0.0</span>
+  </div>
+  <div class="hud-stat">
+    <span class="hud-stat-label">Δ Directionality</span>
+    <span class="hud-stat-val" id="hud-dir" data-testid="hud-dir">0.00</span>
+  </div>
+  <div class="hud-stat">
+    <span class="hud-stat-label">Signal RMS</span>
+    <span class="hud-stat-val" id="hud-sig" data-testid="hud-sig">0.0</span>
+  </div>
+  <div class="hud-stat">
+    <span class="hud-stat-label">Size Dist.</span>
+    <span class="hud-stat-val" id="hud-size" data-testid="hud-size">−3.2</span>
+  </div>
+  <div class="hud-fill"></div>
+  <div class="hud-time" id="hud-time">T+00:00</div>
+  <button class="btn-sm" id="btn-menu" data-testid="btn-menu">Menu</button>
+</div>
+
+<!-- ── MODE TABS ── -->
+<div id="mode-tabs">
+  <button class="mode-tab active" id="tab-a" data-testid="tab-world-a">World A</button>
+  <button class="mode-tab" id="tab-b" data-testid="tab-world-b">World B</button>
+  <button class="mode-tab" id="tab-c" data-testid="tab-world-c">World C</button>
+  <button class="mode-tab" id="tab-d" data-testid="tab-world-d">World D</button>
+</div>
+
+<!-- ── SENSOR PANEL ── -->
+<div id="sensor-panel" class="panel">
+  <div class="sensor-title">Small-Particle Sensor Suite</div>
+  <div class="sensor-row">
+    <span class="sensor-label">Piezoelectric</span>
+    <div class="sensor-bar-wrap"><div class="sensor-bar" id="bar-piezo" style="background:var(--world-a);width:40%"></div></div>
+    <span class="sensor-val" id="val-piezo">0.40</span>
+  </div>
+  <div class="sensor-row">
+    <span class="sensor-label">Plasma / Charge</span>
+    <div class="sensor-bar-wrap"><div class="sensor-bar" id="bar-plasma" style="background:var(--color-accent);width:20%"></div></div>
+    <span class="sensor-val" id="val-plasma">0.20</span>
+  </div>
+  <div class="sensor-row">
+    <span class="sensor-label">RF / Magnetic</span>
+    <div class="sensor-bar-wrap"><div class="sensor-bar" id="bar-rf" style="background:var(--color-primary);width:15%"></div></div>
+    <span class="sensor-val" id="val-rf">0.15</span>
+  </div>
+  <div class="sensor-row">
+    <span class="sensor-label">Impact Direction</span>
+    <div class="sensor-bar-wrap"><div class="sensor-bar" id="bar-dir" style="background:var(--color-warning);width:10%"></div></div>
+    <span class="sensor-val" id="val-dir">±10°</span>
+  </div>
+  
+    <div class="sensor-legend">
+      <div class="sensor-legend-title">What these channels measure</div>
+      <div class="sensor-key-row">
+        <div class="sensor-key-dot" style="background:#4a8fff"></div>
+        <div class="sensor-key-body"><strong>Piezoelectric</strong> — mechanical impulse amplitude from particle impact. Higher = larger particle or higher energy.</div>
+      </div>
+      <div class="sensor-key-row">
+        <div class="sensor-key-dot" style="background:#00f5c8"></div>
+        <div class="sensor-key-body"><strong>Plasma/Charge</strong> — ionisation cloud from hypervelocity impact. Elevated in World D (catastrophic collision) and World C (natural ejecta).</div>
+      </div>
+      <div class="sensor-key-row">
+        <div class="sensor-key-dot" style="background:#ffaa00"></div>
+        <div class="sensor-key-body"><strong>RF/Magnetic</strong> — electromagnetic emission during impact. Rises during deliberate release events (World B burst window).</div>
+      </div>
+      <div class="sensor-key-row">
+        <div class="sensor-key-dot" style="background:#ff3060"></div>
+        <div class="sensor-key-body"><strong>Impact Direction</strong> — angular spread of incoming flux. <em>Narrow = World B (stealth cone ±12°). Wide = World D (omnidirectional ±80°).</em></div>
+      </div>
+    </div>
+    <div class="sensor-chart-wrap">
+</div>
+    <div class="sensor-chart-area">
+    <div class="sensor-chart-label">Impact Rate · Last 60s</div>
+    <canvas id="sensor-canvas" data-testid="sensor-chart"></canvas>
+  </div>
+</div>
+
+<!-- ── WORLD INFO ── -->
+<div id="world-info" class="panel">
+  <div class="world-info-title" id="wi-title">World A · Background Debris</div>
+  <div class="world-info-desc" id="wi-desc">Random, steady-state LEO debris flux. Impact rate ~1000/m²/yr. Particle size follows power-law distribution (exponent −3.2). Isotropic directionality.</div>
+  <div class="world-params">
+    <div class="world-param"><span class="world-param-key">Impact Rate</span><span class="world-param-val" id="wi-rate">~1000 /m²/yr</span></div>
+    <div class="world-param"><span class="world-param-key">Temporal Pattern</span><span class="world-param-val" id="wi-temporal">Steady, random</span></div>
+    <div class="world-param"><span class="world-param-key">Directionality</span><span class="world-param-val" id="wi-direction">Isotropic ±45°</span></div>
+    <div class="world-param"><span class="world-param-key">Size Spectrum</span><span class="world-param-val" id="wi-size">Power-law α=−3.2</span></div>
+    <div class="world-param"><span class="world-param-key">Impact Speed</span><span class="world-param-val" id="wi-speed">7–12 km/s</span></div>
+    <div class="world-param"><span class="world-param-key">Signal Stats</span><span class="world-param-val" id="wi-signal">Natural breakup</span></div>
+  </div>
+</div>
+
+<!-- ── SCORE (game mode) ── -->
+<div id="score-panel" class="panel">
+  <div class="score-label">Score</div>
+  <div class="score-big" id="score-val" data-testid="score-val">0</div>
+  <div class="score-streak" id="streak-val"></div>
+  <div id="lives-display" data-testid="lives-display">
+    <div class="life-dot"></div>
+    <div class="life-dot"></div>
+    <div class="life-dot"></div>
+  </div>
+</div>
+
+<!-- ── CLASSIFY (game mode) ── -->
+<div id="classify-panel" class="panel">
+  <div class="classify-title">Event Classification</div>
+  <div class="classify-hint" id="classify-hint">Analyze sensor data and classify this event:</div>
+  <div class="classify-buttons">
+    <button class="classify-btn a" data-testid="classify-a" onclick="game.classify('A')">Background<br><small>World A</small></button>
+    <button class="classify-btn b" data-testid="classify-b" onclick="game.classify('B')">Stealth<br><small>World B</small></button>
+    <button class="classify-btn c" data-testid="classify-c" onclick="game.classify('C')">Accidental<br><small>World C</small></button>
+    <button class="classify-btn d" data-testid="classify-d" onclick="game.classify('D')">Cascade<br><small>World D</small></button>
+  </div>
+  <div id="classify-result"></div>
+</div>
+
+<!-- ── RESULTS ── -->
+<div id="results-overlay">
+  <div class="results-inner">
+
+    <!-- Header -->
+    <div class="results-header">
+      <div>
+        <div class="results-title" id="results-title">MISSION COMPLETE</div>
+        <div class="results-subtitle">Classification Performance Report · Orbital Debris Sentinel</div>
+      </div>
+      <div style="font-family:var(--font-display);font-size:0.65rem;color:var(--color-text-faint);text-align:right;">
+        Based on Eigbe (2025)<br>Stanford AA · ECLIPSE Lab
+      </div>
+    </div>
+
+    <!-- Stat strip -->
+    <div class="results-stat-strip">
+      <div class="results-stat-cell overall">
+        <span class="results-stat-val" id="res-accuracy">0%</span>
+        <span class="results-stat-label">Overall Accuracy</span>
+      </div>
+      <div class="results-stat-cell">
+        <span class="results-stat-val" id="res-score">0</span>
+        <span class="results-stat-label">Score</span>
+      </div>
+      <div class="results-stat-cell">
+        <span class="results-stat-val" id="res-correct">0</span>
+        <span class="results-stat-label">Correct</span>
+      </div>
+      <div class="results-stat-cell">
+        <span class="results-stat-val" id="res-rounds">0</span>
+        <span class="results-stat-label">Events</span>
+      </div>
+      <div class="results-stat-cell">
+        <span class="results-stat-val" id="res-best-streak">0</span>
+        <span class="results-stat-label">Best Streak</span>
+      </div>
+    </div>
+
+    <!-- Per-world accuracy cards -->
+    <div class="section-title">Classification Accuracy by World</div>
+    <div class="world-breakdown-grid" id="world-cards-grid">
+      <!-- Populated by JS -->
+    </div>
+
+    <!-- Confusion matrix -->
+    <div class="confusion-section">
+      <div class="section-title">Confusion Matrix — Predicted vs Actual</div>
+      <div class="conf-matrix" id="conf-matrix-grid">
+        <!-- Populated by JS -->
+      </div>
+      <div style="margin-top:8px;font-size:0.62rem;color:var(--color-text-faint);">Rows = actual world &nbsp;·&nbsp; Columns = your classification &nbsp;·&nbsp; Diagonal = correct</div>
+    </div>
+
+    <!-- Actions -->
+    <div class="results-actions">
+      <button class="btn btn-primary" id="btn-play-again" data-testid="btn-play-again" onclick="game.restart()">Play Again</button>
+      <button class="btn btn-secondary" onclick="showSplash()" data-testid="btn-main-menu">Main Menu</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── SCRIPTS ── -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ═══════════════════════════════════════════════════════════════
+//  PHYSICS / WORLD PARAMETERS — direct from Eigbe (2025) paper
+// ═══════════════════════════════════════════════════════════════
+const WORLDS = {
+  A: {
+    name: 'World A',
+    label: 'Background Debris',
+    colorHex: 0x00c8ff,
+    colorVar: '--world-a',
+    cssClass: 'a',
+    // Background flux: ~1000 impacts/m²/yr ≈ 0.032 per second normalized
+    baseRate: 0.032,      // impacts per sim-second (normalized)
+    rateSigma: 0.008,     // Poisson-like jitter
+    // Power-law size distribution exponent (NASA ORDEM data)
+    sizeAlpha: -3.2,
+    sizeMin: 0.1,         // mm
+    sizeMax: 1.0,         // mm
+    // Directionality: isotropic (±45°)
+    directionSpread: 45,  // degrees
+    // Impact speed: LEO relative collision ~ 7–12 km/s
+    speedMin: 7.0,
+    speedMax: 12.0,
+    // Signal amplitude: natural breakup signature
+    signalMean: 0.35,
+    signalSigma: 0.12,
+    // Temporal: steady random Poisson
+    temporal: 'steady',
+    burstDuration: 0,
+    // Info text
+    desc: 'Random, steady-state LEO debris flux. Particle size follows power-law distribution (α=−3.2). Isotropic directionality. Baseline background for discrimination.',
+    params: {
+      'Impact Rate': '~1000 /m²/yr',
+      'Temporal Pattern': 'Steady, Poisson',
+      'Directionality': 'Isotropic ±45°',
+      'Size Spectrum': 'Power-law α=−3.2',
+      'Impact Speed': '7–12 km/s',
+      'Signal Stats': 'Natural breakup shape'
+    },
+    // Particle visual
+    particleColor: 0x00c8ff,
+    trailColor: 0x004466,
+    glowStrength: 0.6,
+  },
+  B: {
+    name: 'World B',
+    label: 'Stealth Debris Release',
+    colorHex: 0xff3060,
+    colorVar: '--world-b',
+    cssClass: 'b',
+    // Stealth: concentrated burst, localized — short burst, HIGH rate
+    baseRate: 0.008,
+    burstRate: 0.22,      // elevated during burst window
+    burstDuration: 8,     // seconds burst window (after deliberate release)
+    burstJitter: 1.5,
+    sizeAlpha: -3.0,      // may be engineered: slightly shallower slope
+    sizeMin: 0.1,
+    sizeMax: 0.9,
+    // Directionality: CONE — concentrated excess aligned with attacker geometry
+    directionSpread: 12,  // degrees — narrow cone
+    coneAxis: new THREE.Vector3(1, 0.2, 0.5).normalize(),
+    speedMin: 6.5,
+    speedMax: 11.5,       // narrower energy band
+    signalMean: 0.42,
+    signalSigma: 0.08,    // subtle shifts (material/geometry)
+    temporal: 'burst',
+    desc: 'Deliberate stealth ASAT debris release. Short, localized burst near target. Concentrated directional cone. Elevated rate during event window. Subtle signal shifts relative to natural.',
+    params: {
+      'Impact Rate': 'Short burst ×7 above background',
+      'Temporal Pattern': 'Tight event window ~8s',
+      'Directionality': 'Cone ±12° (attacker axis)',
+      'Size Spectrum': 'Power-law α=−3.0 (engineered)',
+      'Impact Speed': '6.5–11.5 km/s',
+      'Signal Stats': 'Subtle material/geometry shifts'
+    },
+    particleColor: 0xff3060,
+    trailColor: 0x440010,
+    glowStrength: 1.2,
+  },
+  C: {
+    name: 'World C',
+    label: 'Accidental Fragmentation',
+    colorHex: 0xffaa00,
+    colorVar: '--world-c',
+    cssClass: 'c',
+    // Accidental: spreading cloud, broader directionality
+    baseRate: 0.015,
+    burstRate: 0.12,
+    burstDuration: 18,    // longer — cloud spreads over multiple orbits
+    burstJitter: 4.0,
+    sizeAlpha: -3.4,      // typical breakup power law (steeper)
+    sizeMin: 0.1,
+    sizeMax: 1.0,
+    directionSpread: 35,  // broad — evolving directional excess
+    speedMin: 5.0,
+    speedMax: 14.0,       // wide energy band — natural fragmentation
+    signalMean: 0.30,
+    signalSigma: 0.18,    // diffuse, naturally evolving
+    temporal: 'spreading',
+    desc: 'Accidental satellite fragmentation. Spreading cloud — broad directional excess that evolves over multiple orbital passes. Wide energy band. Natural breakup mass spectrum.',
+    params: {
+      'Impact Rate': 'Elevated over multiple orbits',
+      'Temporal Pattern': 'Broader, evolving ~18s',
+      'Directionality': 'Broad evolving ±35°',
+      'Size Spectrum': 'Breakup power-law α=−3.4',
+      'Impact Speed': '5–14 km/s (wide band)',
+      'Signal Stats': 'Diffuse plasma/ejecta, natural'
+    },
+    particleColor: 0xffaa00,
+    trailColor: 0x442200,
+    glowStrength: 0.9,
+  },
+
+  // ─────────────────────────────────────────────────────────────────
+  // WORLD D — KESSLER CASCADE
+  // Grounded in:
+  //   • NASA ORDEM 3.1 / LEGEND fragmentation chain model
+  //   • Kessler & Cour-Palais (1978); Kessler AAS 2009 runaway threshold
+  //   • ESA MASTER-8 / DELTA projection (2026 Space Environment Report)
+  //   • NASA Standard Satellite Breakup Model: catastrophic threshold = 40 J/g
+  //   • Critical spatial density crossed at 800–1000 km (LEGEND)
+  // ─────────────────────────────────────────────────────────────────
+  D: {
+    name: 'World D',
+    label: 'Kessler Cascade',
+    colorHex: 0xb44fff,
+    colorVar: '--world-d',
+    cssClass: 'd',
+
+    // ORIGEM 3.1 background flux at cascade onset (~3× background)
+    baseRate: 0.095,
+    // Each cascade generation roughly doubles fragment count (LEGEND Monte-Carlo)
+    // Generation 0: primary collision → ~1,500 fragments >1cm (NASA breakup model)
+    // Generation 1: cascade hit → another 800–1200 fragments after ~1 orbit
+    // Visual: multiple successive bursts that grow in intensity, never fully decay
+    burstRate: 0.55,          // peak flux during cascade wave
+    burstDuration: 28,        // each generation wave lasts ~28s (spread across orbital period)
+    burstJitter: 5.0,
+    cascadeGenerations: 4,    // up to 4 successive generation waves simulated
+    generationMultiplier: 1.6,// each subsequent wave is 1.6× more intense (LEGEND doubling)
+
+    // Size distribution: ORDEM 3.1 post-breakup population
+    // NASA Standard Breakup Model gives α = −2.6 for catastrophic collisions (shallower —
+    // more large fragments than background), confirmed by Fengyun-1C and Cosmos-2251 data
+    sizeAlpha: -2.6,
+    sizeMin: 0.1,
+    sizeMax: 1.0,
+
+    // Directionality: fully omnidirectional and INCREASING per generation
+    // After multiple orbital passes debris fills the entire shell
+    // MASTER-8: fragment distribution spans full 4π sr within 1–2 orbits
+    directionSpread: 80,      // near-isotropic but with orbital-plane bias
+
+    // Speed: wide distribution, collision-enhanced
+    // Head-on collisions at ~15 km/s, along-track at ~0.1 km/s — average ~8 km/s
+    // Secondary fragments have higher relative velocities (Whipple ejecta)
+    speedMin: 3.0,
+    speedMax: 16.0,
+
+    // Signal: saturated piezo channels, very high plasma signal (plasma cloud
+    // from catastrophic collision), broad spectral signature
+    signalMean: 0.72,
+    signalSigma: 0.22,        // chaotic — multiple simultaneous events
+
+    temporal: 'cascade',      // new mode: self-reinforcing waves
+    desc: 'Runaway Kessler cascade. Each collision generates fragments that trigger further collisions — exponential debris growth. Per LEGEND/ORDEM 3.1, density has crossed the critical threshold at 800–1000 km. Sensor channels saturate. Flux grows with each generation wave.',
+    params: {
+      'Impact Rate': 'Exponential growth (×16 over 4 waves)',
+      'Temporal Pattern': 'Self-reinforcing waves ~28s each',
+      'Directionality': 'Omnidirectional (≈80° spread)',
+      'Size Spectrum': 'Breakup model α=−2.6 (more large frags)',
+      'Impact Speed': '3–16 km/s (collision-enhanced)',
+      'Signal Stats': 'Saturated piezo; dense plasma cloud'
+    },
+    particleColor: 0xb44fff,
+    trailColor: 0x2a006a,
+    glowStrength: 2.0,
+
+    // Cascade state (reset each round)
+    _currentGeneration: 0,
+    _genTimer: 0,
+    _genTriggered: false,
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  THREE.JS SCENE SETUP
+// ═══════════════════════════════════════════════════════════════
+const canvas = document.getElementById('canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.9;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x030510);
+scene.fog = new THREE.FogExp2(0x030510, 0.0012);
+
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 3000);
+camera.position.set(0, 60, 220);
+camera.lookAt(0, 0, 0);
+
+window.addEventListener('resize', () => {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+});
+
+// ── Lights ──
+const ambientLight = new THREE.AmbientLight(0x0a0e28, 1.2);
+scene.add(ambientLight);
+const sunLight = new THREE.DirectionalLight(0xfff4e0, 1.6);
+sunLight.position.set(200, 300, 100);
+scene.add(sunLight);
+const rimLight = new THREE.DirectionalLight(0x001aff, 0.4);
+rimLight.position.set(-200, -100, -200);
+scene.add(rimLight);
+
+// ── Earth ──
+const earthGeo = new THREE.SphereGeometry(64, 64, 64);
+const earthMat = new THREE.MeshStandardMaterial({
+  color: 0x1a3a5c,
+  roughness: 0.7,
+  metalness: 0.0,
+  emissive: 0x041020,
+  emissiveIntensity: 0.3,
+});
+const earth = new THREE.Mesh(earthGeo, earthMat);
+scene.add(earth);
+
+// Atmosphere glow
+const atmGeo = new THREE.SphereGeometry(68, 32, 32);
+const atmMat = new THREE.MeshStandardMaterial({
+  color: 0x1a6aff,
+  transparent: true,
+  opacity: 0.07,
+  side: THREE.BackSide,
+  emissive: 0x0033ff,
+  emissiveIntensity: 0.5,
+});
+scene.add(new THREE.Mesh(atmGeo, atmMat));
+
+// Cloud layer
+const cloudGeo = new THREE.SphereGeometry(65.5, 48, 48);
+const cloudMat = new THREE.MeshStandardMaterial({
+  color: 0xffffff, transparent: true, opacity: 0.09,
+  roughness: 1, metalness: 0
+});
+scene.add(new THREE.Mesh(cloudGeo, cloudMat));
+
+// ── Spacecraft ──
+const scGroup = new THREE.Group();
+scene.add(scGroup);
+
+// Body
+const bodyGeo = new THREE.BoxGeometry(8, 5, 12);
+const bodyMat = new THREE.MeshStandardMaterial({ color: 0x667799, roughness: 0.4, metalness: 0.6 });
+scGroup.add(new THREE.Mesh(bodyGeo, bodyMat));
+
+// Solar panels
+const panelGeo = new THREE.BoxGeometry(28, 0.3, 7);
+const panelMat = new THREE.MeshStandardMaterial({ color: 0x112255, roughness: 0.5, metalness: 0.3, emissive: 0x001133, emissiveIntensity: 0.4 });
+const panel = new THREE.Mesh(panelGeo, panelMat);
+scGroup.add(panel);
+
+// Panel grid lines (gold)
+const gridMat = new THREE.LineBasicMaterial({ color: 0xffaa22, linewidth: 1 });
+for (let i = -3; i <= 3; i++) {
+  const pts = [new THREE.Vector3(-14, 0.2, i * 1.1), new THREE.Vector3(14, 0.2, i * 1.1)];
+  scGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), gridMat));
+}
+
+// Antenna
+const antGeo = new THREE.CylinderGeometry(0.08, 0.08, 8, 6);
+const antMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.9, roughness: 0.1 });
+const ant = new THREE.Mesh(antGeo, antMat);
+ant.position.set(0, 6, 0); ant.rotation.z = 0.3;
+scGroup.add(ant);
+
+// Impact panel (sensor face)
+const impactGeo = new THREE.BoxGeometry(6, 4, 0.3);
+const impactMat = new THREE.MeshStandardMaterial({ color: 0x445566, roughness: 0.3, metalness: 0.8, emissive: 0x001122, emissiveIntensity: 0.2 });
+const impactPanel = new THREE.Mesh(impactGeo, impactMat);
+impactPanel.position.set(0, 0, 6.2);
+scGroup.add(impactPanel);
+
+// Orbit
+const orbitRadius = 160;
+scGroup.position.set(orbitRadius, 0, 0);
+
+// ── Star field ──
+const starGeo = new THREE.BufferGeometry();
+const starCount = 3000;
+const starPos = new Float32Array(starCount * 3);
+for (let i = 0; i < starCount * 3; i++) {
+  starPos[i] = (Math.random() - 0.5) * 2600;
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.7, sizeAttenuation: true });
+scene.add(new THREE.Points(starGeo, starMat));
+
+// ── Orbit ring ──
+const orbitRingGeo = new THREE.TorusGeometry(orbitRadius, 0.2, 8, 128);
+const orbitRingMat = new THREE.MeshBasicMaterial({ color: 0x1a3a6a, transparent: true, opacity: 0.3 });
+const orbitRing = new THREE.Mesh(orbitRingGeo, orbitRingMat);
+orbitRing.rotation.x = Math.PI / 2;
+scene.add(orbitRing);
+
+// ── Debris particles system ──
+const MAX_PARTICLES = 800;
+const particleGeo = new THREE.BufferGeometry();
+const pPositions = new Float32Array(MAX_PARTICLES * 3);
+const pColors = new Float32Array(MAX_PARTICLES * 3);
+const pSizes = new Float32Array(MAX_PARTICLES);
+particleGeo.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
+particleGeo.setAttribute('color', new THREE.BufferAttribute(pColors, 3));
+particleGeo.setAttribute('size', new THREE.BufferAttribute(pSizes, 1));
+
+const pMat = new THREE.ShaderMaterial({
+  uniforms: { time: { value: 0 } },
+  vertexShader: `
+    attribute float size;
+    attribute vec3 color;
+    varying vec3 vColor;
+    void main() {
+      vColor = color;
+      vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = size * (300.0 / -mvPos.z);
+      gl_Position = projectionMatrix * mvPos;
+    }
+  `,
+  fragmentShader: `
+    varying vec3 vColor;
+    void main() {
+      float d = length(gl_PointCoord - 0.5) * 2.0;
+      if(d > 1.0) discard;
+      float alpha = smoothstep(1.0, 0.0, d);
+      gl_FragColor = vec4(vColor, alpha);
+    }
+  `,
+  transparent: true,
+  depthWrite: false,
+  vertexColors: true,
+  blending: THREE.AdditiveBlending,
+});
+const particleSystem = new THREE.Points(particleGeo, pMat);
+scene.add(particleSystem);
+
+// Active particle pool
+const particles = [];
+class Particle {
+  constructor(worldKey) {
+    const W = WORLDS[worldKey];
+    this.alive = true;
+    this.life = 1.0;
+    this.decay = 0.008 + Math.random() * 0.015;
+    // Spawn from random point in space approaching spacecraft
+    const dist = 180 + Math.random() * 80;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    this.pos = new THREE.Vector3(
+      dist * Math.sin(phi) * Math.cos(theta),
+      dist * Math.sin(phi) * Math.sin(theta),
+      dist * Math.cos(phi)
+    );
+    // Velocity: toward spacecraft with world-specific directional spread
+    const target = scGroup.position.clone().add(new THREE.Vector3(
+      (Math.random()-0.5)*2, (Math.random()-0.5)*2, (Math.random()-0.5)*2
+    ));
+    let dir = target.clone().sub(this.pos).normalize();
+    // Apply directional spread
+    const spread = W.directionSpread * (Math.PI / 180);
+    if (worldKey === 'B' && W.coneAxis) {
+      // Stealth: cone around attack axis — perturb less
+      const perp = new THREE.Vector3().crossVectors(W.coneAxis, new THREE.Vector3(0,1,0)).normalize();
+      const angle = (Math.random() - 0.5) * spread * 0.7;
+      dir.lerp(W.coneAxis, 0.8).normalize();
+      dir.applyAxisAngle(perp, angle);
+    } else {
+      // Random perturbation within spread cone
+      const ax = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
+      dir.applyAxisAngle(ax, (Math.random()-0.5) * spread);
+    }
+    const speed = W.speedMin + Math.random() * (W.speedMax - W.speedMin);
+    this.vel = dir.multiplyScalar(speed * 0.04); // scaled for visual
+
+    // Size from power-law distribution
+    const u = Math.random();
+    const alpha = W.sizeAlpha;
+    const rMin = W.sizeMin, rMax = W.sizeMax;
+    // Inverse CDF of power law
+    this.sizeMM = Math.pow(
+      Math.pow(rMin, alpha+1) + u*(Math.pow(rMax, alpha+1) - Math.pow(rMin, alpha+1)),
+      1/(alpha+1)
+    );
+    this.visualSize = 1.5 + this.sizeMM * 3.5;
+
+    const c = new THREE.Color(W.particleColor);
+    this.color = c;
+    this.worldKey = worldKey;
+    this.impacted = false;
+    this.idx = -1;
+  }
+}
+
+// ── Trail system ──
+const trailLines = [];
+function createTrail(p) {
+  const mat = new THREE.LineBasicMaterial({
+    color: WORLDS[p.worldKey].trailColor,
+    transparent: true, opacity: 0.3,
+    blending: THREE.AdditiveBlending,
+  });
+  const pts = [p.pos.clone(), p.pos.clone()];
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const line = new THREE.Line(geo, mat);
+  scene.add(line);
+  return { line, pts, particle: p };
+}
+
+// ── Impact flash effect ──
+function triggerImpactFlash(worldKey) {
+  const el = document.getElementById('impact-flash');
+  const colors = { A: 'rgba(0,200,255,0.12)', B: 'rgba(255,48,96,0.15)', C: 'rgba(255,170,0,0.12)' };
+  el.style.background = colors[worldKey];
+  el.style.opacity = '1';
+  setTimeout(() => { el.style.opacity = '0'; }, 80);
+}
+
+// ── Impact burst (visual shockwave) ──
+function createImpactBurst(pos, worldKey) {
+  const W = WORLDS[worldKey];
+  const count = 18 + Math.floor(Math.random() * 12);
+  for (let i = 0; i < count; i++) {
+    const p = new Particle(worldKey);
+    p.pos.copy(pos);
+    const dir = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
+    p.vel = dir.multiplyScalar(0.5 + Math.random() * 1.5);
+    p.decay = 0.04 + Math.random() * 0.06;
+    p.visualSize = 0.8 + Math.random() * 1.5;
+    p.impacted = true;
+    particles.push(p);
+    trailLines.push(createTrail(p));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SIMULATION STATE
+// ═══════════════════════════════════════════════════════════════
+const simState = {
+  mode: 'splash', // 'splash' | 'sim' | 'game'
+  currentWorld: 'A',
+  elapsedTime: 0,
+  burstTimer: 0,
+  inBurst: false,
+  nextBurstAt: 0,
+  // Sensor readings
+  piezoVal: 0.4,
+  plasmaVal: 0.2,
+  rfVal: 0.15,
+  dirVal: 10,
+  impactRateSmooth: 0,
+  impactRateTarget: 0,
+  signalRms: 0.32,
+  sizeExp: -3.2,
+  // Impact history for chart
+  impactHistory: new Array(60).fill(0),
+  historyTimer: 0,
+  currentSecondCount: 0,
+  // Game state
+  score: 0,
+  streak: 0,
+  lives: 3,
+  roundsPlayed: 0,
+  correctCount: 0,
+  classificationHistory: [],
+  roundTimer: 0,
+  roundDuration: 18,   // seconds per round
+  classificationMade: false,
+  gameOver: false,
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  SENSOR CHART
+// ═══════════════════════════════════════════════════════════════
+const sChart = document.getElementById('sensor-canvas');
+const sCtx = sChart.getContext('2d');
+function resizeSensorChart() {
+  const dpr = window.devicePixelRatio || 1;
+  sChart.width = sChart.offsetWidth * dpr;
+  sChart.height = sChart.offsetHeight * dpr;
+  sCtx.scale(dpr, dpr);
+}
+resizeSensorChart();
+
+function drawSensorChart() {
+  const w = sChart.offsetWidth, h = sChart.offsetHeight;
+  sCtx.clearRect(0, 0, w, h);
+  sCtx.fillStyle = 'rgba(0,0,0,0.3)';
+  sCtx.fillRect(0, 0, w, h);
+
+  const history = simState.impactHistory;
+  const maxVal = Math.max(...history, 0.001);
+  const W = WORLDS[simState.currentWorld];
+  const col = `#${W.colorHex.toString(16).padStart(6,'0')}`;
+
+  // Grid
+  sCtx.strokeStyle = 'rgba(255,255,255,0.05)';
+  sCtx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = (i/4) * h;
+    sCtx.beginPath(); sCtx.moveTo(0, y); sCtx.lineTo(w, y); sCtx.stroke();
+  }
+
+  // Fill area
+  sCtx.beginPath();
+  sCtx.moveTo(0, h);
+  history.forEach((v, i) => {
+    const x = (i / (history.length-1)) * w;
+    const y = h - (v / maxVal) * h * 0.9;
+    i === 0 ? sCtx.lineTo(x, y) : sCtx.lineTo(x, y);
+  });
+  sCtx.lineTo(w, h);
+  sCtx.closePath();
+  const grad = sCtx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, col + 'cc');
+  grad.addColorStop(1, col + '11');
+  sCtx.fillStyle = grad;
+  sCtx.fill();
+
+  // Line
+  sCtx.beginPath();
+  history.forEach((v, i) => {
+    const x = (i / (history.length-1)) * w;
+    const y = h - (v / maxVal) * h * 0.9;
+    i === 0 ? sCtx.moveTo(x, y) : sCtx.lineTo(x, y);
+  });
+  sCtx.strokeStyle = col;
+  sCtx.lineWidth = 1.5;
+  sCtx.stroke();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  UI UPDATE
+// ═══════════════════════════════════════════════════════════════
+function updateHUD() {
+  const s = simState;
+  document.getElementById('hud-rate').textContent = s.impactRateSmooth.toFixed(1);
+  document.getElementById('hud-dir').textContent = s.dirVal.toFixed(1) + '°';
+  document.getElementById('hud-sig').textContent = s.signalRms.toFixed(2);
+  document.getElementById('hud-size').textContent = s.sizeExp.toFixed(2);
+
+  const mins = Math.floor(s.elapsedTime / 60);
+  const secs = Math.floor(s.elapsedTime % 60);
+  document.getElementById('hud-time').textContent =
+    `T+${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+
+  // Sensor bars
+  const W = WORLDS[s.currentWorld];
+  const colHex = '#' + W.colorHex.toString(16).padStart(6,'0');
+  document.getElementById('bar-piezo').style.width = (s.piezoVal * 100) + '%';
+  document.getElementById('bar-piezo').style.background = colHex;
+  document.getElementById('val-piezo').textContent = s.piezoVal.toFixed(2);
+  document.getElementById('bar-plasma').style.width = (s.plasmaVal * 100) + '%';
+  document.getElementById('bar-plasma').style.background = colHex;
+  document.getElementById('val-plasma').textContent = s.plasmaVal.toFixed(2);
+  document.getElementById('bar-rf').style.width = (s.rfVal * 100) + '%';
+  document.getElementById('bar-rf').style.background = colHex;
+  document.getElementById('val-rf').textContent = s.rfVal.toFixed(2);
+  const dirNorm = Math.min(s.dirVal / 50, 1);
+  document.getElementById('bar-dir').style.width = (dirNorm * 100) + '%';
+  document.getElementById('val-dir').textContent = '±' + Math.round(s.dirVal) + '°';
+
+  drawSensorChart();
+}
+
+function updateWorldInfo(worldKey) {
+  const W = WORLDS[worldKey];
+  const colHex = '#' + W.colorHex.toString(16).padStart(6,'0');
+  const wi = document.getElementById('world-info');
+  const wiTitle = document.getElementById('wi-title');
+  wiTitle.textContent = `${W.name} · ${W.label}`;
+  wiTitle.style.color = colHex;
+  document.getElementById('wi-desc').textContent = W.desc;
+  const p = W.params;
+  document.getElementById('wi-rate').textContent = p['Impact Rate'];
+  document.getElementById('wi-temporal').textContent = p['Temporal Pattern'];
+  document.getElementById('wi-direction').textContent = p['Directionality'];
+  document.getElementById('wi-size').textContent = p['Size Spectrum'];
+  document.getElementById('wi-speed').textContent = p['Impact Speed'];
+  document.getElementById('wi-signal').textContent = p['Signal Stats'];
+
+  // Update HUD world label
+  const lbl = document.getElementById('hud-world-label');
+  lbl.textContent = W.name;
+  lbl.className = `hud-world-label ${W.cssClass}`;
+
+  // Update context bar
+  const colHex2 = '#' + W.colorHex.toString(16).padStart(6,'0');
+  const cb = document.getElementById('world-context-bar');
+  if (cb) {
+    document.getElementById('wcb-temporal').textContent = W.params['Temporal Pattern'];
+    document.getElementById('wcb-temporal').style.color = colHex2;
+    document.getElementById('wcb-alpha').textContent = W.sizeAlpha.toFixed(1);
+    document.getElementById('wcb-alpha').style.color = colHex2;
+    document.getElementById('wcb-speed').textContent = W.speedMin + '–' + W.speedMax + ' km/s';
+    document.getElementById('wcb-speed').style.color = colHex2;
+    document.getElementById('wcb-dir').textContent = '±' + W.directionSpread + '°';
+    document.getElementById('wcb-dir').style.color = colHex2;
+    document.getElementById('wcb-desc').textContent = W.desc;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TOAST NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════════
+function showToast(msg, type = 'info', duration = 1800) {
+  const area = document.getElementById('toast-area');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  area.appendChild(t);
+  setTimeout(() => t.style.opacity = '0', duration);
+  setTimeout(() => t.remove(), duration + 400);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  GAME LOGIC
+// ═══════════════════════════════════════════════════════════════
+window.game = {
+  classify(guess) {
+    const s = simState;
+    if (s.classificationMade || s.gameOver) return;
+    s.classificationMade = true;
+    const correct = s.currentWorld === guess;
+    const W = WORLDS[s.currentWorld];
+
+    s.roundsPlayed++;
+    s.classificationHistory.push({
+      world: s.currentWorld,
+      guess,
+      correct,
+    });
+
+    if (correct) {
+      s.correctCount++;
+      s.streak++;
+      if (s.streak > (s.bestStreak || 0)) s.bestStreak = s.streak;
+      const bonus = Math.min(s.streak * 50, 500);
+      const pts = 100 + bonus;
+      s.score += pts;
+      showToast(`✓ Correct! +${pts} pts${s.streak > 1 ? ` (×${s.streak} streak)` : ''}`, 'correct');
+      document.getElementById('classify-result').innerHTML =
+        `<span style="color:var(--color-success)">CORRECT — ${W.name}: ${W.label}</span>`;
+    } else {
+      s.streak = 0;
+      s.lives--;
+      showToast(`✗ Incorrect — was ${W.name}`, 'wrong', 2200);
+      document.getElementById('classify-result').innerHTML =
+        `<span style="color:var(--color-danger)">WRONG — Actually ${W.name}: ${W.label}</span>`;
+      updateLives(s.lives);
+      if (s.lives <= 0) {
+        setTimeout(() => this.showResults(), 1200);
+        return;
+      }
+    }
+
+    document.getElementById('score-val').textContent = s.score;
+    document.getElementById('streak-val').textContent = s.streak > 1 ? `🔥 ${s.streak}× streak` : '';
+
+    // Move to next round after delay
+    setTimeout(() => {
+      if (!s.gameOver) this.nextRound();
+    }, 1600);
+  },
+
+  nextRound() {
+    const s = simState;
+    s.classificationMade = false;
+    s.roundTimer = 0;
+    document.getElementById('classify-result').innerHTML = '';
+    // Randomly pick a new world for game mode
+    const worlds = ['A', 'B', 'C', 'D'];
+    const w = worlds[Math.floor(Math.random() * 4)];
+    switchWorld(w);
+    resetWorldState();
+    updateWorldInfo(w);
+  },
+
+  showResults() {
+    const s = simState;
+    s.gameOver = true;
+
+    // ── Aggregate data ──
+    const acc = s.roundsPlayed > 0 ? Math.round(s.correctCount / s.roundsPlayed * 100) : 0;
+    document.getElementById('res-score').textContent = s.score;
+    document.getElementById('res-correct').textContent = s.correctCount;
+    document.getElementById('res-rounds').textContent = s.roundsPlayed;
+    document.getElementById('res-accuracy').textContent = acc + '%';
+    document.getElementById('res-best-streak').textContent = s.bestStreak || 0;
+
+    // Per-world tallies
+    const hist = s.classificationHistory;
+    const byWorld = {};
+    ['A','B','C','D'].forEach(w => {
+      byWorld[w] = { correct: 0, total: 0, confusedAs: {A:0,B:0,C:0,D:0} };
+    });
+    hist.forEach(h => {
+      byWorld[h.world].total++;
+      if (h.correct) byWorld[h.world].correct++;
+      else byWorld[h.world].confusedAs[h.guess]++;
+    });
+
+    // ── Sensor signature profiles per world ──
+    // Each signature: { label, value 0–1, color }
+    // Values derived directly from WORLDS physics params for visualization
+    const SIGNATURES = {
+      A: [
+        { label: 'Piezo Amp',    pct: 0.38, note: 'Moderate, steady' },
+        { label: 'Plasma',       pct: 0.20, note: 'Low' },
+        { label: 'RF/Magnetic',  pct: 0.16, note: 'Low' },
+        { label: 'Dir. Spread',  pct: 0.45, note: 'Isotropic ±45°' },
+        { label: 'Rate Variance',pct: 0.18, note: 'Very low (Poisson steady)' },
+      ],
+      B: [
+        { label: 'Piezo Amp',    pct: 0.44, note: 'Slightly elevated, uniform' },
+        { label: 'Plasma',       pct: 0.25, note: 'Low-moderate' },
+        { label: 'RF/Magnetic',  pct: 0.28, note: 'Elevated during burst' },
+        { label: 'Dir. Spread',  pct: 0.12, note: 'NARROW cone ±12° ← key signal' },
+        { label: 'Rate Variance',pct: 0.72, note: 'Short burst spike ×7' },
+      ],
+      C: [
+        { label: 'Piezo Amp',    pct: 0.31, note: 'Lower, diffuse' },
+        { label: 'Plasma',       pct: 0.35, note: 'Moderate — natural ejecta' },
+        { label: 'RF/Magnetic',  pct: 0.14, note: 'Low' },
+        { label: 'Dir. Spread',  pct: 0.60, note: 'Broad evolving ±35°' },
+        { label: 'Rate Variance',pct: 0.55, note: 'Longer elevated window ~18s' },
+      ],
+      D: [
+        { label: 'Piezo Amp',    pct: 0.88, note: 'SATURATED — multi-event' },
+        { label: 'Plasma',       pct: 0.78, note: 'DENSE plasma cloud' },
+        { label: 'RF/Magnetic',  pct: 0.55, note: 'High broadband' },
+        { label: 'Dir. Spread',  pct: 0.90, note: 'Near-omnidirectional ±80°' },
+        { label: 'Rate Variance',pct: 0.98, note: 'Exponential growth, never decays' },
+      ],
+    };
+
+    // Discriminant tips per world — what to look for
+    const TIPS = {
+      A: {
+        head: 'Key discriminants — World A',
+        body: 'Steady Poisson rate with near-zero variance. Isotropic direction spread (±45°). Low plasma and RF channels. No bursts or escalation. Sensor readings remain flat over entire observation window.'
+      },
+      B: {
+        head: 'Key discriminants — World B',
+        body: 'Watch the Directionality bar — a tight cone (±12°) is the smoking gun for a stealth release. Short, sharp burst spike that returns to background. RF/Magnetic channel rises during the event window. Piezo amplitude slightly above World A.'
+      },
+      C: {
+        head: 'Key discriminants — World C',
+        body: 'Elevated rate over a longer, broader window (~18s) than World B. Wide direction spread (±35°) that evolves across passes. Plasma channel moderate — natural collision ejecta signature. Size exponent steeper (α = −3.4) — fewer large fragments than B or D.'
+      },
+      D: {
+        head: 'Key discriminants — World D',
+        body: 'Self-reinforcing cascade: rate grows with each generation wave — it never returns to baseline after Gen 3. Piezo and plasma channels both saturate. Near-omnidirectional debris (±80°). Size exponent α = −2.6 (shallower — more large fragments). Watch for successive toast alerts escalating in intensity.'
+      },
+    };
+
+    // ── Build world cards ──
+    const grid = document.getElementById('world-cards-grid');
+    grid.innerHTML = '';
+    ['A','B','C','D'].forEach(w => {
+      const bw = byWorld[w];
+      const W = WORLDS[w];
+      const colHex = '#' + W.colorHex.toString(16).padStart(6,'0');
+      const seen = bw.total > 0;
+      const pct = seen ? Math.round(bw.correct / bw.total * 100) : null;
+      const sigs = SIGNATURES[w];
+      const tip = TIPS[w];
+
+      // Confusion summary — what it was mistaken for
+      let confusionHtml = '';
+      if (seen && bw.correct < bw.total) {
+        const mistakes = Object.entries(bw.confusedAs)
+          .filter(([k,v]) => v > 0)
+          .sort((a,b) => b[1]-a[1])
+          .map(([k,v]) => `<strong>World ${k}</strong> ×${v}`);
+        if (mistakes.length) {
+          confusionHtml = `<div class="wc-confusion">Misclassified as: ${mistakes.join(', ')}</div>`;
+        }
+      }
+
+      // Accuracy color
+      const accColor = !seen ? 'var(--color-text-faint)'
+        : pct >= 80 ? 'var(--color-success)'
+        : pct >= 50 ? 'var(--color-warning)'
+        : 'var(--color-danger)';
+
+      const sigBars = sigs.map(s => `
+        <div class="wc-sig-row">
+          <span class="wc-sig-label">${s.label}</span>
+          <div class="wc-sig-track">
+            <div class="wc-sig-fill" style="width:${s.pct*100}%;background:${colHex}99;"></div>
+          </div>
+        </div>`).join('');
+
+      const card = document.createElement('div');
+      card.className = `world-card ${w.toLowerCase()}${!seen ? ' not-seen' : ''}`;
+      card.innerHTML = `
+        <div class="wc-header">
+          <span class="wc-name ${w.toLowerCase()}">${W.name} · ${W.label}</span>
+          <span class="wc-accuracy-badge" style="color:${accColor}">
+            ${seen ? pct+'%' : '—'}
+          </span>
+        </div>
+        <div class="wc-acc-bar-wrap">
+          <div class="wc-acc-bar" style="width:${seen?pct:0}%;background:${accColor};"></div>
+        </div>
+        ${seen
+          ? `<div class="wc-confusion"><strong>${bw.correct} / ${bw.total}</strong> events correctly identified</div>${confusionHtml}`
+          : '<div class="wc-not-seen">Not encountered this session</div>'
+        }
+        <div class="wc-sig-title">Sensor Signature Profile</div>
+        <div class="wc-sig-bars">${sigBars}</div>
+        <div class="wc-tip">
+          <div class="wc-tip-head ${w.toLowerCase()}">${tip.head}</div>
+          ${tip.body}
+        </div>`;
+      grid.appendChild(card);
+    });
+
+    // ── Confusion matrix ──
+    const matGrid = document.getElementById('conf-matrix-grid');
+    matGrid.innerHTML = '';
+    const WORLDS_ORDER = ['A','B','C','D'];
+
+    // Header row: blank corner + predicted labels
+    matGrid.innerHTML += `<div class="conf-cell conf-header" style="text-align:right;font-size:0.58rem;color:var(--color-text-faint);padding-right:4px;">Actual \ Pred.</div>`;
+    WORLDS_ORDER.forEach(w => {
+      matGrid.innerHTML += `<div class="conf-cell conf-header" style="color:${'#'+WORLDS[w].colorHex.toString(16).padStart(6,'0')}">${w}</div>`;
+    });
+
+    // Data rows
+    WORLDS_ORDER.forEach(actual => {
+      const colHex = '#'+WORLDS[actual].colorHex.toString(16).padStart(6,'0');
+      matGrid.innerHTML += `<div class="conf-row-label" style="color:${colHex};">${actual} &rarr;</div>`;
+      WORLDS_ORDER.forEach(predicted => {
+        const bw = byWorld[actual];
+        const val = actual === predicted ? bw.correct : (bw.confusedAs[predicted] || 0);
+        const isDiag = actual === predicted;
+        const cls = isDiag ? `conf-cell conf-diag ${actual.toLowerCase()}` : 'conf-cell conf-val';
+        const display = bw.total === 0 ? '—' : val;
+        matGrid.innerHTML += `<div class="${cls}">${display}</div>`;
+      });
+    });
+
+    document.getElementById('results-overlay').style.display = 'flex';
+    // Scroll to top of results
+    document.getElementById('results-overlay').scrollTop = 0;
+  },
+
+  restart() {
+    const s = simState;
+    s.score = 0; s.streak = 0; s.bestStreak = 0; s.lives = 3;
+    s.roundsPlayed = 0; s.correctCount = 0;
+    s.classificationHistory = [];
+    s.classificationMade = false;
+    s.gameOver = false;
+    document.getElementById('score-val').textContent = '0';
+    document.getElementById('streak-val').textContent = '';
+    document.getElementById('results-overlay').style.display = 'none';
+    document.getElementById('classify-result').innerHTML = '';
+    updateLives(3);
+    this.nextRound();
+  }
+};
+
+function updateLives(n) {
+  const ld = document.getElementById('lives-display');
+  ld.innerHTML = '';
+  for (let i = 0; i < Math.max(n, 0); i++) {
+    const d = document.createElement('div');
+    d.className = 'life-dot';
+    ld.appendChild(d);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  WORLD SWITCHING
+// ═══════════════════════════════════════════════════════════════
+function switchWorld(worldKey) {
+  simState.currentWorld = worldKey;
+  updateWorldInfo(worldKey);
+
+  // Update tab highlights (sim mode)
+  ['A','B','C','D'].forEach(w => {
+    const t = document.getElementById(`tab-${w.toLowerCase()}`);
+    t && t.classList.toggle('active', w === worldKey);
+  });
+}
+
+function resetWorldState() {
+  const s = simState;
+  const W = WORLDS[s.currentWorld];
+  s.inBurst = false;
+  s.burstTimer = 0;
+  s.elapsedTime = 0;
+  s.impactHistory.fill(0);
+  s.currentSecondCount = 0;
+  // Clear cascade state
+  s.cascadeGen = 0;
+  s.cascadeGenTimer = 0;
+  s.cascadeWaveActive = false;
+  s.cascadeNextWaveAt = 2.5;
+  if (W.temporal !== 'steady' && W.temporal !== 'cascade') {
+    s.nextBurstAt = 3 + Math.random() * 5;
+  }
+  s.impactRateSmooth = W.baseRate * 1200;
+  s.impactRateTarget = s.impactRateSmooth;
+  // Seed sensor bars to world target values immediately
+  const SIG = WORLD_SIG_TARGETS[s.currentWorld];
+  s.piezoVal  = SIG.piezo;
+  s.plasmaVal = SIG.plasma;
+  s.rfVal     = SIG.rf;
+  s.dirVal    = W.directionSpread;
+  s.signalRms = Math.sqrt(SIG.piezo**2 + SIG.plasma**2) * 0.8;
+  // Purge live particles
+  for (const t of trailLines) { scene.remove(t.line); t.line.geometry.dispose(); }
+  trailLines.length = 0;
+  particles.length = 0;
+  // Immediately push seeded values to HUD
+  if (simState.mode !== 'splash') updateHUD();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SCREEN TRANSITIONS
+// ═══════════════════════════════════════════════════════════════
+function showHUD(show) {
+  document.getElementById('hud').style.display = show ? 'flex' : 'none';
+}
+
+function showSensorPanel(show) {
+  document.getElementById('sensor-panel').style.display = show ? 'block' : 'none';
+}
+
+function showWorldInfo(show) {
+  document.getElementById('world-info').style.display = show ? 'block' : 'none';
+}
+
+function showModeTabs(show) {
+  document.getElementById('mode-tabs').style.display = show ? 'flex' : 'none';
+}
+
+function showGameUI(show) {
+  document.getElementById('score-panel').style.display = show ? 'block' : 'none';
+  document.getElementById('classify-panel').style.display = show ? 'block' : 'none';
+}
+
+function startSim() {
+  simState.mode = 'sim';
+  document.getElementById('splash').style.display = 'none';
+  showHUD(true);
+  showSensorPanel(true);
+  showWorldInfo(true);
+  showModeTabs(true);
+  showGameUI(false);
+  document.getElementById('world-context-bar').style.display = 'flex';
+  document.getElementById('help-btn').style.display = 'flex';
+  switchWorld('A');
+  resetWorldState();
+}
+
+function startGame() {
+  simState.mode = 'game';
+  simState.score = 0; simState.streak = 0; simState.bestStreak = 0; simState.lives = 3;
+  simState.roundsPlayed = 0; simState.correctCount = 0;
+  simState.classificationHistory = [];
+  simState.classificationMade = false;
+  simState.gameOver = false;
+  document.getElementById('splash').style.display = 'none';
+  showHUD(true);
+  showSensorPanel(true);
+  showWorldInfo(false);
+  showModeTabs(false);
+  showGameUI(true);
+  document.getElementById('world-context-bar').style.display = 'none';
+  document.getElementById('help-btn').style.display = 'none';
+  document.getElementById('score-val').textContent = '0';
+  document.getElementById('streak-val').textContent = '';
+  updateLives(3);
+  // Start with random world
+  const worlds = ['A','B','C','D'];
+  const w = worlds[Math.floor(Math.random()*4)];
+  switchWorld(w);
+  resetWorldState();
+}
+
+window.showSplash = function() {
+  document.getElementById('splash').style.display = 'flex';
+  document.getElementById('results-overlay').style.display = 'none';
+  showHUD(false);
+  showSensorPanel(false);
+  showWorldInfo(false);
+  showModeTabs(false);
+  showGameUI(false);
+  simState.mode = 'splash';
+};
+
+// ── Buttons ──
+document.getElementById('btn-game').addEventListener('click', startGame);
+document.getElementById('btn-sim').addEventListener('click', startSim);
+document.getElementById('btn-menu').addEventListener('click', showSplash);
+
+document.getElementById('tab-a').addEventListener('click', () => { if(simState.mode==='sim'){switchWorld('A');resetWorldState();} });
+document.getElementById('tab-b').addEventListener('click', () => { if(simState.mode==='sim'){switchWorld('B');resetWorldState();} });
+document.getElementById('tab-c').addEventListener('click', () => { if(simState.mode==='sim'){switchWorld('C');resetWorldState();} });
+document.getElementById('tab-d').addEventListener('click', () => { if(simState.mode==='sim'){switchWorld('D');resetWorldState();} });
+
+// ── Splash world badge clicks → sim mode with that world ──
+document.querySelectorAll('.world-badge').forEach(badge => {
+  badge.addEventListener('click', () => {
+    const worldMap = { 'a': 'A', 'b': 'B', 'c': 'C', 'd': 'D' };
+    const cls = Array.from(badge.classList).find(c => worldMap[c]);
+    if (cls) { startSim(); switchWorld(worldMap[cls]); resetWorldState(); }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  MAIN SIMULATION LOOP — spawn particles per world physics
+// ═══════════════════════════════════════════════════════════════
+let spawnAccum = 0;
+let lastParticleIdx = 0;
+
+function spawnParticle(worldKey) {
+  const p = new Particle(worldKey);
+  p.idx = lastParticleIdx % MAX_PARTICLES;
+  lastParticleIdx++;
+  particles.push(p);
+  trailLines.push(createTrail(p));
+}
+
+function updateParticles(dt) {
+  const s = simState;
+  if (s.mode === 'splash') return;
+
+  const W = WORLDS[s.currentWorld];
+  s.elapsedTime += dt;
+  s.historyTimer += dt;
+  s.roundTimer += dt;
+
+  // ── Burst scheduling ──
+  // ── Cascade (World D): self-reinforcing generation waves ──
+  if (W.temporal === 'cascade') {
+    // Reset per-world cascade state if it doesn’t exist on simState
+    if (s.cascadeGen === undefined) {
+      s.cascadeGen = 0;
+      s.cascadeGenTimer = 0;
+      s.cascadeWaveActive = false;
+      s.cascadeNextWaveAt = 2.5;  // first collision after 2.5s
+    }
+    if (!s.cascadeWaveActive && s.elapsedTime >= s.cascadeNextWaveAt) {
+      s.cascadeWaveActive = true;
+      s.cascadeGenTimer = 0;
+      s.cascadeGen++;
+      const genLabel = ['PRIMARY', 'GEN 1', 'GEN 2', 'GEN 3', 'GEN 4+'][Math.min(s.cascadeGen, 4)];
+      showToast(`☠ CASCADE ${genLabel} — ×${(Math.pow(W.generationMultiplier, s.cascadeGen - 1)).toFixed(1)} FLUX`, 'wrong', 2500);
+    }
+    if (s.cascadeWaveActive) {
+      s.cascadeGenTimer += dt;
+      if (s.cascadeGenTimer >= W.burstDuration) {
+        s.cascadeWaveActive = false;
+        // Each next wave arrives sooner as cascade accelerates (runaway instability)
+        const interval = Math.max(3, 14 - s.cascadeGen * 2.2);
+        s.cascadeNextWaveAt = s.elapsedTime + interval;
+      }
+    }
+  }
+
+  if (W.temporal !== 'steady' && W.temporal !== 'cascade') {
+    if (!s.inBurst && s.elapsedTime >= s.nextBurstAt) {
+      s.inBurst = true;
+      s.burstTimer = 0;
+      showToast(
+        W.temporal === 'burst' ? '⚠ ANOMALOUS BURST DETECTED' : '⚡ FRAGMENTATION EVENT',
+        'info', 2000
+      );
+    }
+    if (s.inBurst) {
+      s.burstTimer += dt;
+      if (s.burstTimer >= W.burstDuration) {
+        s.inBurst = false;
+        // Schedule next burst
+        s.nextBurstAt = s.elapsedTime + (W.temporal === 'burst' ? 12 + Math.random()*8 : 20 + Math.random()*15);
+      }
+    }
+  }
+
+  // ── Compute current rate ──
+  let rate = W.baseRate;
+  if (W.temporal === 'cascade' && s.cascadeWaveActive) {
+    const genIntensity = Math.pow(W.generationMultiplier, Math.min(s.cascadeGen - 1, W.cascadeGenerations - 1));
+    const progress = s.cascadeGenTimer / W.burstDuration;
+    // Each wave has a sharp rise and slower decay (asymmetric envelope)
+    const envelope = Math.pow(Math.sin(progress * Math.PI), 0.5);
+    rate = W.baseRate * genIntensity + (W.burstRate * genIntensity - W.baseRate) * envelope;
+    // After gen 3 the rate never drops below 4× base (runaway threshold crossed)
+    if (s.cascadeGen >= 3) rate = Math.max(rate, W.baseRate * 4.0);
+  } else if (s.inBurst && W.burstRate) {
+    const progress = s.burstTimer / W.burstDuration;
+    const envelope = Math.sin(progress * Math.PI);
+    rate = W.baseRate + (W.burstRate - W.baseRate) * envelope;
+  }
+  // Add noise
+  rate += (Math.random() - 0.5) * (W.rateSigma || 0.005);
+  rate = Math.max(0, rate);
+
+  // Target rate for HUD (impacts/m²/yr normalized display)
+  s.impactRateTarget = rate * 1200;
+  s.impactRateSmooth += (s.impactRateTarget - s.impactRateSmooth) * dt * 3;
+
+  // ── Spawn particles ──
+  spawnAccum += rate * dt * 30;
+  while (spawnAccum >= 1) {
+    spawnParticle(s.currentWorld);
+    spawnAccum -= 1;
+  }
+
+  // ── Update sensor values ──
+  const impacted = [];
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= p.decay;
+    p.pos.add(p.vel);
+
+    // Check collision with spacecraft
+    if (!p.impacted && p.pos.distanceTo(scGroup.position) < 7) {
+      p.impacted = true;
+      createImpactBurst(p.pos.clone(), s.currentWorld);
+      triggerImpactFlash(s.currentWorld);
+      impacted.push(p);
+      // Update sensor readings toward world-specific target values
+      const W2 = WORLDS[s.currentWorld];
+      const T  = WORLD_SIG_TARGETS[s.currentWorld];
+      const noise = () => (Math.random()-0.5) * 0.04;
+      // Burst/cascade amplifies signal temporarily
+      const burstMult = (s.inBurst || s.cascadeWaveActive) ? (1 + 0.3 * Math.random()) : 1.0;
+      s.piezoVal  += (T.piezo  * burstMult + noise() - s.piezoVal)  * 0.18;
+      s.plasmaVal += (T.plasma * burstMult + noise() - s.plasmaVal) * 0.14;
+      s.rfVal     += (T.rf     * burstMult + noise() - s.rfVal)     * 0.10;
+      s.dirVal    += (W2.directionSpread * (0.85 + Math.random()*0.3) - s.dirVal) * 0.14;
+      // Clamp to [0,1]
+      s.piezoVal  = Math.max(0, Math.min(1, s.piezoVal));
+      s.plasmaVal = Math.max(0, Math.min(1, s.plasmaVal));
+      s.rfVal     = Math.max(0, Math.min(1, s.rfVal));
+      s.signalRms = Math.sqrt(s.piezoVal**2 + s.plasmaVal**2) * 0.8;
+      s.currentSecondCount++;
+    }
+
+    if (p.life <= 0) {
+      particles.splice(i, 1);
+      const ti = trailLines.findIndex(t => t.particle === p);
+      if (ti >= 0) {
+        scene.remove(trailLines[ti].line);
+        trailLines[ti].line.geometry.dispose();
+        trailLines.splice(ti, 1);
+      }
+    }
+  }
+
+  // ── Update impact history (per second) ──
+  if (s.historyTimer >= 1.0) {
+    s.historyTimer -= 1.0;
+    s.impactHistory.shift();
+    s.impactHistory.push(s.currentSecondCount);
+    s.currentSecondCount = 0;
+  }
+
+  // ── Update particle geometry ──
+  const pos = particleGeo.attributes.position.array;
+  const col = particleGeo.attributes.color.array;
+  const sz = particleGeo.attributes.size.array;
+  const active = particles.slice(0, MAX_PARTICLES);
+  for (let i = 0; i < MAX_PARTICLES; i++) {
+    if (i < active.length) {
+      const p = active[i];
+      pos[i*3] = p.pos.x; pos[i*3+1] = p.pos.y; pos[i*3+2] = p.pos.z;
+      col[i*3] = p.color.r * p.life;
+      col[i*3+1] = p.color.g * p.life;
+      col[i*3+2] = p.color.b * p.life;
+      sz[i] = p.visualSize * p.life;
+    } else {
+      pos[i*3]=pos[i*3+1]=pos[i*3+2]=99999;
+      sz[i] = 0;
+    }
+  }
+  particleGeo.attributes.position.needsUpdate = true;
+  particleGeo.attributes.color.needsUpdate = true;
+  particleGeo.attributes.size.needsUpdate = true;
+
+  // ── Update trails ──
+  for (let i = trailLines.length - 1; i >= 0; i--) {
+    const t = trailLines[i];
+    const p = t.particle;
+    if (!p.alive || p.life <= 0) {
+      scene.remove(t.line);
+      t.line.geometry.dispose();
+      trailLines.splice(i, 1);
+    } else {
+      const pts = [p.pos.clone().sub(p.vel.clone().multiplyScalar(8)), p.pos.clone()];
+      t.line.geometry.setFromPoints(pts);
+      t.line.material.opacity = p.life * 0.25;
+    }
+  }
+
+  // ── Update size exponent display (simulate estimation) ──
+  const W2 = WORLDS[s.currentWorld];
+  const targetAlpha = W2.sizeAlpha + (Math.random()-0.5)*0.15;
+  s.sizeExp += (targetAlpha - s.sizeExp) * dt * 0.5;
+
+  // ── Continuous sensor drift toward world targets (even between impacts) ──
+  const T2 = WORLD_SIG_TARGETS[s.currentWorld];
+  const drift = 0.04 * dt;
+  const bMult = (s.inBurst || s.cascadeWaveActive) ? 1.25 : 1.0;
+  s.piezoVal  += (T2.piezo  * bMult - s.piezoVal)  * drift;
+  s.plasmaVal += (T2.plasma * bMult - s.plasmaVal) * drift;
+  s.rfVal     += (T2.rf     * bMult - s.rfVal)     * drift;
+  s.dirVal    += (W2.directionSpread - s.dirVal)   * drift;
+  s.signalRms  = Math.sqrt(s.piezoVal**2 + s.plasmaVal**2) * 0.8;
+
+  updateHUD();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CAMERA ANIMATION
+// ═══════════════════════════════════════════════════════════════
+let camTheta = 0;
+let camPhi = 0.3;
+let camRadius = 220;
+let targetCamRadius = 220;
+
+canvas.addEventListener('mousemove', (e) => {
+  if (simState.mode === 'splash') return;
+  if (e.buttons === 1) {
+    camTheta -= e.movementX * 0.005;
+    camPhi = Math.max(0.05, Math.min(1.2, camPhi - e.movementY * 0.005));
+  }
+});
+canvas.addEventListener('wheel', (e) => {
+  targetCamRadius = Math.max(120, Math.min(450, targetCamRadius + e.deltaY * 0.3));
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  MAIN RENDER LOOP
+// ═══════════════════════════════════════════════════════════════
+let lastTime = 0;
+let orbitAngle = 0;
+
+function animate(time) {
+  requestAnimationFrame(animate);
+  const dt = Math.min((time - lastTime) / 1000, 0.05);
+  lastTime = time;
+
+  if (simState.mode === 'splash') {
+    // Slow spin of Earth and ambient particles in splash
+    earth.rotation.y += dt * 0.04;
+    camTheta += dt * 0.06;
+    camera.position.set(
+      Math.sin(camTheta) * 220,
+      40 + Math.sin(camTheta * 0.3) * 20,
+      Math.cos(camTheta) * 220
+    );
+    camera.lookAt(0, 0, 0);
+    renderer.render(scene, camera);
+    return;
+  }
+
+  // ── Orbit spacecraft ──
+  orbitAngle += dt * 0.22;
+  scGroup.position.set(
+    Math.cos(orbitAngle) * orbitRadius,
+    Math.sin(orbitAngle * 0.3) * 10,
+    Math.sin(orbitAngle) * orbitRadius
+  );
+  scGroup.rotation.y = orbitAngle + Math.PI;
+  scGroup.rotation.z = Math.sin(orbitAngle) * 0.15;
+
+  // Earth rotation
+  earth.rotation.y += dt * 0.025;
+
+  // Camera smooth follow
+  camRadius += (targetCamRadius - camRadius) * dt * 3;
+  const targetCamPos = new THREE.Vector3(
+    scGroup.position.x + Math.sin(camTheta) * camRadius * 0.5,
+    scGroup.position.y + 50 + Math.sin(camPhi) * camRadius * 0.5,
+    scGroup.position.z + Math.cos(camTheta) * camRadius * 0.5
+  );
+  camera.position.lerp(targetCamPos, dt * 2.5);
+  camera.lookAt(scGroup.position);
+
+  // Shader time
+  pMat.uniforms.time.value = time * 0.001;
+
+  // ── Simulation update ──
+  updateParticles(dt);
+
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(animate);
+
+// ── Loading bar fake progress ──
+let prog = 0;
+const progBar = document.getElementById('loading-bar');
+const progTimer = setInterval(() => {
+  prog = Math.min(prog + Math.random() * 15, 100);
+  progBar.style.width = prog + '%';
+  if (prog >= 100) { clearInterval(progTimer); setTimeout(()=>progBar.style.display='none', 400); }
+}, 80);
+
+</script>
+
+  <!-- Help overlay -->
+  <div id="help-overlay">
+    <div class="help-inner">
+      <div class="help-title">// SIMULATION GUIDE</div>
+
+      <div class="help-section">
+        <h3>What you are looking at</h3>
+        <div class="help-row">
+          <span class="help-row-key">3D VIEW</span>
+          <span class="help-row-val">Your sensor-equipped spacecraft orbiting Earth. Coloured dots are debris particles on approach. Each particle that reaches the spacecraft triggers a sensor reading. Trails show particle trajectories — <strong>notice how World B trails cluster in a tight cone</strong>, while World D fills the whole sky.</span>
+        </div>
+        <div class="help-row">
+          <span class="help-row-key">TOP BAR</span>
+          <span class="help-row-val"><strong>Impact Rate</strong> (impacts/m²/yr normalised) · <strong>Δ Directionality</strong> (angular spread of incoming flux) · <strong>Signal RMS</strong> (root mean square of piezo + plasma channels) · <strong>Size Dist. α</strong> (fitted power-law exponent of particle size distribution)</span>
+        </div>
+        <div class="help-row">
+          <span class="help-row-key">RIGHT PANEL</span>
+          <span class="help-row-val">Four sensor channels updating in real time as particles hit. The bar widths reflect the <strong>true discriminant profiles</strong> from Table B.1 of the paper — not made up. Watch them change when you switch worlds.</span>
+        </div>
+        <div class="help-row">
+          <span class="help-row-key">RATE CHART</span>
+          <span class="help-row-val">Impact count per second over the last 60 seconds. This is the core temporal discriminant: World A = flat noise; World B = sharp spike then quiet; World C = broad hump; World D = escalating steps that never return to baseline.</span>
+        </div>
+        <div class="help-row">
+          <span class="help-row-key">BOTTOM LEFT</span>
+          <span class="help-row-val">Physics parameters for the active world, straight from the paper.</span>
+        </div>
+      </div>
+
+      <div class="help-section">
+        <h3>The four worlds</h3>
+        <div class="help-row">
+          <span class="help-row-key" style="color:#00c8ff">World A</span>
+          <span class="help-row-val"><strong>Background LEO debris.</strong> Steady Poisson flux, isotropic direction (±45°), low signal variance. This is the null hypothesis — everything looks flat.</span>
+        </div>
+        <div class="help-row">
+          <span class="help-row-key" style="color:#ff3060">World B</span>
+          <span class="help-row-val"><strong>Stealth ASAT release.</strong> Short burst ×7 above background, then returns to quiet. Key discriminant: <em>directional spread collapses to ±12°</em> — a tight cone aligned with the attacker. RF/Magnetic channel rises during the event window.</span>
+        </div>
+        <div class="help-row">
+          <span class="help-row-key" style="color:#ffaa00">World C</span>
+          <span class="help-row-val"><strong>Accidental fragmentation.</strong> Elevated flux over a longer, broader window (~18s). Direction spread ±35° and evolving across passes. Plasma channel moderate (natural ejecta). Size exponent steeper (α = −3.4).</span>
+        </div>
+        <div class="help-row">
+          <span class="help-row-key" style="color:#b44fff">World D</span>
+          <span class="help-row-val"><strong>Kessler cascade.</strong> Self-reinforcing: each generation multiplies flux by ×1.6. Rate never returns to baseline after Gen 3. All sensor channels saturate. Near-omnidirectional (±80°). Size exponent α = −2.6 (more large fragments).</span>
+        </div>
+      </div>
+
+      <div class="help-section">
+        <h3>Controls</h3>
+        <div class="help-row">
+          <span class="help-row-key">Drag</span>
+          <span class="help-row-val">Rotate the 3D view to see debris directionality from different angles</span>
+        </div>
+        <div class="help-row">
+          <span class="help-row-key">Scroll</span>
+          <span class="help-row-val">Zoom in/out</span>
+        </div>
+        <div class="help-row">
+          <span class="help-row-key">World tabs</span>
+          <span class="help-row-val">Switch between scenarios — sensor bars and rate chart reset to each world's physics</span>
+        </div>
+      </div>
+
+      <button class="help-close-btn" onclick="document.getElementById('help-overlay').style.display='none'">CLOSE</button>
+    </div>
+  </div>
+
+  <!-- Help button -->
+  <button id="help-btn" onclick="document.getElementById('help-overlay').style.display='flex'">?</button>
+
+</body>
+</html>
